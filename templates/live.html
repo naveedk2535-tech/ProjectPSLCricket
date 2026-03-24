@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+{% block title %}LIVE: {{ fixture.team_a }} vs {{ fixture.team_b }} - PSL Analytics{% endblock %}
+{% block page_title %}Live Match{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="liveMatch()">
+
+    <!-- Match Header -->
+    <div class="bg-gray-900 border border-red-900/50 rounded-xl p-6">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full bg-red-500 pulse-live"></div>
+                    <span class="text-sm font-bold text-red-400 uppercase">Live</span>
+                </div>
+                <span class="text-sm text-gray-500">{{ fixture.venue }}</span>
+            </div>
+            <span class="text-xs text-gray-500">{{ fixture.match_date }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+            <div class="text-center flex-1">
+                <div class="w-16 h-16 rounded-xl mx-auto flex items-center justify-center text-xl font-bold text-white" style="background-color: {{ team_colors.get(fixture.team_a, '#888') }}20; border: 2px solid {{ team_colors.get(fixture.team_a, '#888') }}">
+                    {{ team_short.get(fixture.team_a, 'A') }}
+                </div>
+                <p class="text-sm font-semibold text-white mt-2">{{ fixture.team_a }}</p>
+            </div>
+
+            <!-- Score Display -->
+            <div class="text-center px-6">
+                <p class="text-5xl font-bold text-white" x-text="score + '/' + wickets">{{ live.score }}/{{ live.wickets }}</p>
+                <p class="text-lg text-gray-400 mt-1">(<span x-text="overs">{{ live.overs }}</span> ov)</p>
+                <div class="flex items-center gap-4 mt-2 text-sm">
+                    <span class="text-gray-400">CRR: <span class="text-white font-medium" x-text="currentRate">{{ '%.2f'|format(live.score / (live.overs if live.overs > 0 else 1)) }}</span></span>
+                    <template x-if="requiredRate !== null">
+                        <span class="text-gray-400">RRR: <span class="text-amber-400 font-medium" x-text="requiredRate">{{ live.required_rate or '-' }}</span></span>
+                    </template>
+                </div>
+                {% if live.innings == 2 and live.target %}
+                <p class="text-sm text-amber-400 mt-1">Target: {{ live.target }}</p>
+                {% endif %}
+            </div>
+
+            <div class="text-center flex-1">
+                <div class="w-16 h-16 rounded-xl mx-auto flex items-center justify-center text-xl font-bold text-white" style="background-color: {{ team_colors.get(fixture.team_b, '#888') }}20; border: 2px solid {{ team_colors.get(fixture.team_b, '#888') }}">
+                    {{ team_short.get(fixture.team_b, 'B') }}
+                </div>
+                <p class="text-sm font-semibold text-white mt-2">{{ fixture.team_b }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auto/Manual Toggle -->
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Score Input Mode</h3>
+            <button @click="toggleAutoUpdate()" class="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors"
+                    :class="autoUpdate ? 'bg-green-900/50 text-green-400 border border-green-700' : 'bg-gray-800 text-gray-400 border border-gray-700'">
+                <div class="w-3 h-3 rounded-full" :class="autoUpdate ? 'bg-green-500 pulse-live' : 'bg-gray-600'"></div>
+                <span x-text="autoUpdate ? 'Auto Mode' : 'Manual Mode'" class="text-sm font-medium"></span>
+            </button>
+        </div>
+
+        <!-- Auto mode info -->
+        <template x-if="autoUpdate">
+            <div class="p-3 bg-green-900/20 border border-green-800/30 rounded-lg text-sm text-green-300 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                <span>Auto-updating every 2 minutes via CricAPI</span>
+                <span class="ml-auto text-xs text-green-400">Next: <span x-text="countdown + 's'">120s</span></span>
+            </div>
+        </template>
+
+        <!-- Manual mode input -->
+        <template x-if="!autoUpdate">
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Score</label>
+                    <input type="number" x-model.number="manualScore" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="0">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Wickets</label>
+                    <input type="number" x-model.number="manualWickets" min="0" max="10" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="0">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Overs</label>
+                    <input type="number" x-model.number="manualOvers" step="0.1" min="0" max="20" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="0.0">
+                </div>
+                <div class="flex items-end">
+                    <button @click="recalculate()" class="w-full py-2 bg-green-600 hover:bg-green-500 text-white font-medium rounded-lg transition-colors">
+                        Recalculate
+                    </button>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 space-y-6">
+
+            <!-- Win Probability -->
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Win Probability</h3>
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-lg font-bold" style="color: {{ team_colors.get(fixture.team_a, '#888') }}" x-text="winProbA + '%'">{{ live.win_prob_a }}%</span>
+                    <span class="text-lg font-bold" style="color: {{ team_colors.get(fixture.team_b, '#888') }}" x-text="winProbB + '%'">{{ live.win_prob_b }}%</span>
+                </div>
+                <div class="flex rounded-full h-6 overflow-hidden bg-gray-800">
+                    <div class="h-full transition-all duration-700 ease-in-out flex items-center justify-center text-xs font-bold text-white" :style="'width:' + winProbA + '%; background-color: {{ team_colors.get(fixture.team_a, '#00A651') }}'">
+                        <span x-show="winProbA > 15" x-text="'{{ team_short.get(fixture.team_a, 'A') }} ' + winProbA + '%'"></span>
+                    </div>
+                    <div class="h-full transition-all duration-700 ease-in-out flex items-center justify-center text-xs font-bold text-white" :style="'width:' + winProbB + '%; background-color: {{ team_colors.get(fixture.team_b, '#E3263A') }}'">
+                        <span x-show="winProbB > 15" x-text="'{{ team_short.get(fixture.team_b, 'B') }} ' + winProbB + '%'"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Projected Total / Required Rate -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 text-center">
+                    <p class="text-xs text-gray-500 uppercase tracking-wider mb-2">Projected Total</p>
+                    <p class="text-4xl font-bold text-white" x-text="projectedTotal">{{ live.projected_total or '---' }}</p>
+                </div>
+                <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 text-center">
+                    <p class="text-xs text-gray-500 uppercase tracking-wider mb-2">Required Rate</p>
+                    <p class="text-4xl font-bold" :class="requiredRate && requiredRate > 12 ? 'text-red-400' : requiredRate && requiredRate > 9 ? 'text-amber-400' : 'text-green-400'" x-text="requiredRate || 'N/A'">{{ live.required_rate or 'N/A' }}</p>
+                </div>
+            </div>
+
+            <!-- Key Moments Timeline -->
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Key Moments</h3>
+                <div class="space-y-3 max-h-72 overflow-y-auto">
+                    {% for moment in key_moments|reverse %}
+                    <div class="flex items-start gap-3 p-3 bg-gray-800 rounded-lg">
+                        <div class="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center text-xs font-bold text-gray-300 flex-shrink-0">
+                            {{ moment.over }}
+                        </div>
+                        <div class="flex-1">
+                            <p class="text-sm text-white">{{ moment.event }}</p>
+                            <p class="text-xs mt-1 {% if moment.win_prob_shift > 0 %}text-green-400{% elif moment.win_prob_shift < 0 %}text-red-400{% else %}text-gray-500{% endif %}">
+                                Win prob shift: {{ '%+.1f'|format(moment.win_prob_shift) }}%
+                            </p>
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-sm text-gray-500">No key moments yet. Score updates will appear here.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div class="space-y-6">
+
+            <!-- What-If Calculator -->
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">What-If Calculator</h3>
+                <div class="space-y-3">
+                    <select x-model="whatIfScenario" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500">
+                        <option value="wicket_next_over">Wicket falls next over</option>
+                        <option value="big_over_15">15-run over scored</option>
+                        <option value="maiden_over">Maiden over bowled</option>
+                        <option value="two_wickets">Two wickets in next over</option>
+                    </select>
+                    <button @click="calculateWhatIf()" class="w-full py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white text-sm font-medium rounded-lg transition-colors">
+                        Calculate
+                    </button>
+                    <template x-if="whatIfResult">
+                        <div class="p-3 bg-gray-800 rounded-lg">
+                            <p class="text-xs text-gray-500 mb-1" x-text="whatIfResult.scenario"></p>
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs text-gray-500">Current</p>
+                                    <p class="text-lg font-bold text-white" x-text="whatIfResult.current_prob_a + '%'"></p>
+                                </div>
+                                <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+                                <div>
+                                    <p class="text-xs text-gray-500">Projected</p>
+                                    <p class="text-lg font-bold" :class="whatIfResult.shift > 0 ? 'text-green-400' : 'text-red-400'" x-text="whatIfResult.new_prob_a + '%'"></p>
+                                </div>
+                            </div>
+                            <p class="text-xs mt-2 text-center" :class="whatIfResult.shift > 0 ? 'text-green-400' : 'text-red-400'" x-text="(whatIfResult.shift > 0 ? '+' : '') + whatIfResult.shift + '% shift'"></p>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Live Prop Bet Updates -->
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Prop Bet Tracker</h3>
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between p-3 bg-gray-800 rounded-lg">
+                        <div>
+                            <p class="text-xs text-gray-500">Total Runs Projection</p>
+                            <p class="text-lg font-bold text-white" x-text="projectedTotal || '---'">{{ live.projected_total or '---' }}</p>
+                        </div>
+                        <span class="text-xs px-2 py-1 bg-green-900/50 text-green-400 rounded-full">Pred: {{ prediction.props.total_runs.line }}</span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-800 rounded-lg">
+                        <div>
+                            <p class="text-xs text-gray-500">Wides So Far</p>
+                            <p class="text-lg font-bold text-white">-</p>
+                        </div>
+                        <span class="text-xs px-2 py-1 bg-gray-700 text-gray-400 rounded-full">Pred: {{ prediction.props.total_wides }}</span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-800 rounded-lg">
+                        <div>
+                            <p class="text-xs text-gray-500">No-Balls So Far</p>
+                            <p class="text-lg font-bold text-white">-</p>
+                        </div>
+                        <span class="text-xs px-2 py-1 bg-gray-700 text-gray-400 rounded-full">Pred: {{ prediction.props.total_no_balls }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Match Info -->
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Match Info</h3>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Venue</span>
+                        <span class="text-white">{{ fixture.venue }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Innings</span>
+                        <span class="text-white" x-text="'{{ live.innings }}{{ 'st' if live.innings == 1 else 'nd' }}'">{{ live.innings }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Batting</span>
+                        <span class="text-white">{{ live.batting_team }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-400">Last Updated</span>
+                        <span class="text-gray-400 text-xs">{{ live.last_updated or 'N/A' }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function liveMatch() {
+    return {
+        fixtureId: '{{ fixture.id }}',
+        score: {{ live.score }},
+        wickets: {{ live.wickets }},
+        overs: {{ live.overs }},
+        winProbA: {{ live.win_prob_a }},
+        winProbB: {{ live.win_prob_b }},
+        projectedTotal: {{ live.projected_total or 'null' }},
+        requiredRate: {{ live.required_rate or 'null' }},
+        autoUpdate: {{ 'true' if live.auto_update else 'false' }},
+        countdown: 120,
+        manualScore: {{ live.score }},
+        manualWickets: {{ live.wickets }},
+        manualOvers: {{ live.overs }},
+        whatIfScenario: 'wicket_next_over',
+        whatIfResult: null,
+        timer: null,
+
+        get currentRate() {
+            if (this.overs <= 0) return '0.00';
+            return (this.score / this.overs).toFixed(2);
+        },
+
+        init() {
+            if (this.autoUpdate) this.startTimer();
+        },
+
+        startTimer() {
+            this.countdown = 120;
+            this.timer = setInterval(() => {
+                this.countdown--;
+                if (this.countdown <= 0) {
+                    this.countdown = 120;
+                    // In production, this would fetch from CricAPI
+                }
+            }, 1000);
+        },
+
+        toggleAutoUpdate() {
+            fetch(`/api/live/toggle-auto/${this.fixtureId}`, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    this.autoUpdate = data.auto_update;
+                    if (this.autoUpdate) {
+                        this.startTimer();
+                    } else {
+                        clearInterval(this.timer);
+                    }
+                });
+        },
+
+        recalculate() {
+            fetch('/api/live/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    fixture_id: this.fixtureId,
+                    score: this.manualScore,
+                    wickets: this.manualWickets,
+                    overs: this.manualOvers
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                this.score = this.manualScore;
+                this.wickets = this.manualWickets;
+                this.overs = this.manualOvers;
+                this.winProbA = data.win_prob_a;
+                this.winProbB = data.win_prob_b;
+                this.projectedTotal = data.projected_total;
+                this.requiredRate = data.required_rate;
+            });
+        },
+
+        calculateWhatIf() {
+            fetch('/api/live/whatif', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    fixture_id: this.fixtureId,
+                    scenario: this.whatIfScenario
+                })
+            })
+            .then(r => r.json())
+            .then(data => { this.whatIfResult = data; });
+        }
+    };
+}
+</script>
+{% endblock %}

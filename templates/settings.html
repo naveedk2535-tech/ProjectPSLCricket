@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+{% block title %}Settings - PSL Analytics{% endblock %}
+{% block page_title %}Settings{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="settingsPage()">
+
+    <!-- User Management -->
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
+        <h3 class="text-lg font-semibold text-white mb-4">User Management</h3>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Add User -->
+            <div>
+                <h4 class="text-sm font-medium text-gray-400 mb-3">Add New User</h4>
+                <form action="{{ url_for('api_add_user') }}" method="POST" class="space-y-3">
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Username</label>
+                        <input type="text" name="username" required class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500" placeholder="New username">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Password</label>
+                        <input type="password" name="password" required class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500" placeholder="Password">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Role</label>
+                        <select name="role" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500">
+                            <option value="user">User</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full py-2 bg-green-600 hover:bg-green-500 text-white text-sm font-medium rounded-lg transition-colors">Add User</button>
+                </form>
+            </div>
+
+            <!-- Current Users -->
+            <div>
+                <h4 class="text-sm font-medium text-gray-400 mb-3">Current Users</h4>
+                <div class="space-y-2">
+                    {% for username, info in users.items() %}
+                    <div class="flex items-center justify-between p-3 bg-gray-800 rounded-lg">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full bg-green-900/50 flex items-center justify-center text-green-400 text-sm font-bold">
+                                {{ username[0]|upper }}
+                            </div>
+                            <div>
+                                <p class="text-sm text-white font-medium">{{ username }}</p>
+                                <p class="text-xs text-gray-500">{{ info.get('role', 'user') }}</p>
+                            </div>
+                        </div>
+                        {% if username != 'admin' %}
+                        <button @click="deleteUser('{{ username }}')" class="text-xs text-red-400 hover:text-red-300 transition-colors">Delete</button>
+                        {% else %}
+                        <span class="text-xs text-gray-600">Protected</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Change Password -->
+                <div class="mt-4">
+                    <h4 class="text-sm font-medium text-gray-400 mb-3">Change Password</h4>
+                    <div class="space-y-2">
+                        <input type="text" x-model="changePwUser" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500" placeholder="Username">
+                        <input type="password" x-model="changePwPass" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500" placeholder="New password">
+                        <button @click="changePassword()" class="w-full py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded-lg transition-colors">Change Password</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Model Weights -->
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
+        <h3 class="text-lg font-semibold text-white mb-4">Model Weight Adjustment</h3>
+        <p class="text-xs text-gray-500 mb-4">Adjust the contribution of each model to the ensemble prediction. Weights should sum to 1.0.</p>
+
+        <div class="space-y-4">
+            {% for model in ['batting_bowling', 'elo', 'xgboost', 'sentiment'] %}
+            <div class="flex items-center gap-4">
+                <span class="text-sm text-gray-300 w-36 capitalize">{{ model|replace('_', ' ') }}</span>
+                <input type="range" min="0" max="100" :value="modelWeights.{{ model }} * 100"
+                       @input="modelWeights.{{ model }} = $event.target.value / 100; updateWeightSum()"
+                       class="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-green-500">
+                <span class="text-sm text-white w-14 text-right font-mono" x-text="(modelWeights.{{ model }} * 100).toFixed(0) + '%'">{{ (weights[model] * 100)|round(0) }}%</span>
+            </div>
+            {% endfor %}
+
+            <div class="flex items-center justify-between pt-3 border-t border-gray-800">
+                <span class="text-sm font-medium" :class="weightSum > 0.99 && weightSum < 1.01 ? 'text-green-400' : 'text-red-400'" x-text="'Sum: ' + (weightSum * 100).toFixed(0) + '%'">Sum: 100%</span>
+                <div class="flex gap-2">
+                    <button @click="resetWeights()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white text-sm font-medium rounded-lg transition-colors">Reset</button>
+                    <button @click="saveWeights()" class="px-4 py-2 bg-green-600 hover:bg-green-500 text-white text-sm font-medium rounded-lg transition-colors">Save Weights</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Portfolio Settings -->
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
+        <h3 class="text-lg font-semibold text-white mb-4">Portfolio Settings</h3>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Create Portfolio -->
+            <div>
+                <h4 class="text-sm font-medium text-gray-400 mb-3">Create New Portfolio</h4>
+                <form action="{{ url_for('api_portfolios') }}" method="POST" class="space-y-3">
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Portfolio Name</label>
+                        <input type="text" name="name" required class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500" placeholder="My Portfolio">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Starting Bankroll ($)</label>
+                        <input type="number" name="bankroll" value="10000" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500">
+                    </div>
+                    <button type="submit" class="w-full py-2 bg-green-600 hover:bg-green-500 text-white text-sm font-medium rounded-lg transition-colors">Create Portfolio</button>
+                </form>
+            </div>
+
+            <!-- Bankroll Settings -->
+            <div>
+                <h4 class="text-sm font-medium text-gray-400 mb-3">Bankroll Settings</h4>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Total Bankroll ($)</label>
+                        <input type="number" x-model.number="bankrollAmount" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Unit Size ($)</label>
+                        <input type="number" x-model.number="unitSize" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500">
+                    </div>
+                    <button @click="saveBankroll()" class="w-full py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded-lg transition-colors">Save Bankroll Settings</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Existing Portfolios -->
+        {% if portfolios %}
+        <div class="mt-6">
+            <h4 class="text-sm font-medium text-gray-400 mb-3">Existing Portfolios</h4>
+            <div class="space-y-2">
+                {% for p in portfolios %}
+                <div class="flex items-center justify-between p-3 bg-gray-800 rounded-lg">
+                    <div>
+                        <p class="text-sm text-white font-medium">{{ p.name }}</p>
+                        <p class="text-xs text-gray-500">${{ '%.0f'|format(p.current_bankroll) }} / ${{ '%.0f'|format(p.starting_bankroll) }}</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-0.5 text-xs rounded-full {% if p.status == 'active' %}bg-green-900/50 text-green-400{% else %}bg-gray-700 text-gray-400{% endif %}">{{ p.status }}</span>
+                        {% if p.status == 'active' %}
+                        <button @click="closePortfolio('{{ p.id }}')" class="text-xs text-red-400 hover:text-red-300 transition-colors">Close</button>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Alert Settings -->
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
+        <h3 class="text-lg font-semibold text-white mb-4">Alert Settings</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">Email for Value Bet Alerts</label>
+                <input type="email" x-model="alertEmail" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500" placeholder="you@example.com">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">Edge Threshold (%)</label>
+                <input type="number" x-model.number="alertThreshold" step="0.5" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500">
+            </div>
+        </div>
+        <button @click="saveAlerts()" class="mt-4 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded-lg transition-colors">Save Alert Settings</button>
+    </div>
+
+    <!-- Status Toast -->
+    <div x-show="toast" x-cloak x-transition
+         class="fixed bottom-6 right-6 px-4 py-3 bg-green-900 border border-green-700 text-green-300 text-sm rounded-lg shadow-lg z-50"
+         x-text="toastMsg"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function settingsPage() {
+    return {
+        modelWeights: {
+            batting_bowling: {{ weights.batting_bowling }},
+            elo: {{ weights.elo }},
+            xgboost: {{ weights.xgboost }},
+            sentiment: {{ weights.sentiment }}
+        },
+        weightSum: {{ weights.batting_bowling + weights.elo + weights.xgboost + weights.sentiment }},
+        changePwUser: '',
+        changePwPass: '',
+        bankrollAmount: {{ bankroll.amount }},
+        unitSize: {{ bankroll.unit_size }},
+        alertEmail: '{{ alerts.email }}',
+        alertThreshold: {{ alerts.threshold }},
+        toast: false,
+        toastMsg: '',
+
+        updateWeightSum() {
+            this.weightSum = this.modelWeights.batting_bowling + this.modelWeights.elo + this.modelWeights.xgboost + this.modelWeights.sentiment;
+        },
+
+        resetWeights() {
+            this.modelWeights = { batting_bowling: 0.30, elo: 0.25, xgboost: 0.30, sentiment: 0.15 };
+            this.updateWeightSum();
+        },
+
+        showToast(msg) {
+            this.toastMsg = msg;
+            this.toast = true;
+            setTimeout(() => this.toast = false, 3000);
+        },
+
+        saveWeights() {
+            fetch('/api/model-weights', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(this.modelWeights)
+            }).then(r => r.json()).then(() => this.showToast('Model weights saved'));
+        },
+
+        deleteUser(username) {
+            if (!confirm('Delete user ' + username + '?')) return;
+            fetch('/api/users/' + username, { method: 'DELETE' })
+                .then(r => r.json())
+                .then(() => { this.showToast('User deleted'); location.reload(); });
+        },
+
+        changePassword() {
+            if (!this.changePwUser || !this.changePwPass) return;
+            fetch('/api/users/' + this.changePwUser + '/password', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: this.changePwPass })
+            }).then(r => r.json()).then(d => {
+                if (d.error) this.showToast('Error: ' + d.error);
+                else { this.showToast('Password changed'); this.changePwPass = ''; }
+            });
+        },
+
+        saveBankroll() {
+            fetch('/api/bankroll', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount: this.bankrollAmount, unit_size: this.unitSize })
+            }).then(r => r.json()).then(() => this.showToast('Bankroll settings saved'));
+        },
+
+        closePortfolio(pid) {
+            if (!confirm('Close this portfolio?')) return;
+            fetch('/api/portfolios/' + pid + '/close', { method: 'POST' })
+                .then(r => r.json())
+                .then(() => { this.showToast('Portfolio closed'); location.reload(); });
+        },
+
+        saveAlerts() {
+            this.showToast('Alert settings saved (email delivery requires SMTP configuration)');
+        }
+    };
+}
+</script>
+{% endblock %}

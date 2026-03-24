@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Sentiment - PSL Analytics{% endblock %}
+{% block page_title %}Team Sentiment{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Sentiment Comparison Chart -->
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
+        <h3 class="text-lg font-semibold text-white mb-4">Sentiment Comparison</h3>
+        <div class="h-72">
+            <canvas id="sentimentChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Team Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {% for team in teams_data %}
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-gray-700 transition-colors">
+            <!-- Team Header -->
+            <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-4 h-4 rounded-full" style="background-color: {{ team.color }}"></div>
+                    <span class="text-sm font-semibold text-white">{{ team.short }}</span>
+                </div>
+                <div class="flex items-center gap-1">
+                    {% if team.trend == 'up' %}
+                    <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
+                    {% elif team.trend == 'down' %}
+                    <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    {% else %}
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14"/></svg>
+                    {% endif %}
+                    <span class="text-xs {% if team.trend == 'up' %}text-green-400{% elif team.trend == 'down' %}text-red-400{% else %}text-gray-400{% endif %} capitalize">{{ team.trend }}</span>
+                </div>
+            </div>
+
+            <p class="text-xs text-gray-500 mb-3">{{ team.team }}</p>
+
+            <!-- Sentiment Score Gauge -->
+            <div class="mb-3">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs text-gray-500">Sentiment Score</span>
+                    <span class="text-lg font-bold {% if team.score > 0.3 %}text-green-400{% elif team.score > 0 %}text-green-300{% elif team.score > -0.3 %}text-amber-400{% else %}text-red-400{% endif %}">
+                        {{ '%+.2f'|format(team.score) }}
+                    </span>
+                </div>
+                <div class="relative w-full h-3 bg-gray-800 rounded-full overflow-hidden">
+                    {% set gauge_pos = ((team.score + 1) / 2 * 100)|round(0) %}
+                    <div class="absolute top-0 left-0 h-full rounded-full"
+                         style="width: {{ gauge_pos }}%; background: linear-gradient(90deg, #EF4444 0%, #F59E0B 50%, #22C55E 100%)"></div>
+                </div>
+                <div class="flex justify-between text-xs text-gray-600 mt-0.5">
+                    <span>-1.0</span>
+                    <span>0</span>
+                    <span>+1.0</span>
+                </div>
+            </div>
+
+            <!-- Volume -->
+            <div class="flex items-center justify-between mb-3 py-2 border-t border-gray-800">
+                <span class="text-xs text-gray-500">Mentions</span>
+                <span class="text-sm text-white font-medium">{{ team.volume }}</span>
+            </div>
+
+            <!-- Reddit vs News -->
+            <div class="grid grid-cols-2 gap-2 mb-3">
+                <div class="bg-gray-800 rounded-lg p-2 text-center">
+                    <p class="text-xs text-gray-500">Reddit</p>
+                    <p class="text-sm font-bold {% if team.reddit_score > 0 %}text-green-400{% elif team.reddit_score < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
+                        {{ '%+.2f'|format(team.reddit_score) }}
+                    </p>
+                </div>
+                <div class="bg-gray-800 rounded-lg p-2 text-center">
+                    <p class="text-xs text-gray-500">News</p>
+                    <p class="text-sm font-bold {% if team.news_score > 0 %}text-green-400{% elif team.news_score < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
+                        {{ '%+.2f'|format(team.news_score) }}
+                    </p>
+                </div>
+            </div>
+
+            <!-- Keywords -->
+            <div>
+                <p class="text-xs text-gray-500 mb-1.5">Top Keywords</p>
+                <div class="flex flex-wrap gap-1">
+                    {% for kw in team.keywords %}
+                    <span class="px-2 py-0.5 bg-gray-800 text-gray-400 text-xs rounded-full">{{ kw }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('sentimentChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: [{% for t in teams_data %}'{{ t.short }}'{% if not loop.last %},{% endif %}{% endfor %}],
+            datasets: [{
+                label: 'Sentiment Score',
+                data: [{% for t in teams_data %}{{ t.score }}{% if not loop.last %},{% endif %}{% endfor %}],
+                backgroundColor: [{% for t in teams_data %}'{{ t.color }}80'{% if not loop.last %},{% endif %}{% endfor %}],
+                borderColor: [{% for t in teams_data %}'{{ t.color }}'{% if not loop.last %},{% endif %}{% endfor %}],
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    min: -1, max: 1,
+                    grid: { color: '#374151' },
+                    ticks: { color: '#9CA3AF' }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#9CA3AF' }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

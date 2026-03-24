@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - PSL Cricket Analytics{% endblock %}
+{% block page_title %}Command Center{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Season Overview -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs text-gray-500 uppercase tracking-wider">Matches Played</span>
+                <div class="w-8 h-8 rounded-lg bg-green-900/50 flex items-center justify-center">
+                    <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+            </div>
+            <p class="text-3xl font-bold text-white">{{ matches_played }}</p>
+            <p class="text-xs text-gray-500 mt-1">of {{ total_matches }} total</p>
+        </div>
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs text-gray-500 uppercase tracking-wider">Remaining</span>
+                <div class="w-8 h-8 rounded-lg bg-amber-900/50 flex items-center justify-center">
+                    <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+            </div>
+            <p class="text-3xl font-bold text-white">{{ matches_remaining }}</p>
+            <p class="text-xs text-gray-500 mt-1">matches to go</p>
+        </div>
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs text-gray-500 uppercase tracking-wider">Current Leader</span>
+                <div class="w-8 h-8 rounded-lg bg-yellow-900/50 flex items-center justify-center">
+                    <svg class="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3l3.5 7H2L12 21l10-11h-6.5L19 3H5z"/></svg>
+                </div>
+            </div>
+            {% if leader %}
+            <p class="text-xl font-bold text-white">{{ leader.team }}</p>
+            <p class="text-xs text-gray-500 mt-1">{{ leader.pts }} pts | NRR: {{ leader.nrr }}</p>
+            {% else %}
+            <p class="text-xl font-bold text-gray-500">TBD</p>
+            {% endif %}
+        </div>
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs text-gray-500 uppercase tracking-wider">Live Matches</span>
+                <div class="w-8 h-8 rounded-lg bg-red-900/50 flex items-center justify-center">
+                    <div class="w-3 h-3 rounded-full bg-red-500 pulse-live"></div>
+                </div>
+            </div>
+            <p class="text-3xl font-bold text-white">{{ live_fixtures|length }}</p>
+            <p class="text-xs text-gray-500 mt-1">in progress</p>
+        </div>
+    </div>
+
+    <!-- Live Matches (if any) -->
+    {% if live_fixtures %}
+    <div class="bg-gray-900 border border-red-900/50 rounded-xl p-5">
+        <div class="flex items-center gap-2 mb-4">
+            <div class="w-3 h-3 rounded-full bg-red-500 pulse-live"></div>
+            <h3 class="text-lg font-semibold text-white">Live Matches</h3>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {% for lm in live_fixtures %}
+            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <div class="flex justify-between items-center mb-3">
+                    <span class="text-sm font-medium text-white">{{ lm.team_a }} vs {{ lm.team_b }}</span>
+                    <span class="text-xs px-2 py-1 bg-red-900/50 text-red-400 rounded-full">LIVE</span>
+                </div>
+                <div class="text-2xl font-bold text-green-400 mb-2">{{ lm.score }}/{{ lm.wickets }} <span class="text-sm text-gray-500">({{ lm.overs }} ov)</span></div>
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="flex-1 bg-gray-700 rounded-full h-3 overflow-hidden">
+                        <div class="h-full bg-green-500 rounded-full transition-all" style="width: {{ lm.win_prob_a }}%"></div>
+                    </div>
+                    <span class="text-xs text-gray-400 w-20 text-right">{{ lm.win_prob_a }}% - {{ lm.win_prob_b }}%</span>
+                </div>
+                <a href="{{ url_for('live_match', fixture_id=lm.fixture_id) }}" class="inline-flex items-center gap-1 text-sm text-green-400 hover:text-green-300 transition-colors">
+                    Watch Live
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Upcoming Matches -->
+        <div class="lg:col-span-2 space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-white">Upcoming Matches</h3>
+                <a href="{{ url_for('tournament') }}" class="text-sm text-green-400 hover:text-green-300">View All</a>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {% for item in upcoming %}
+                {% set f = item.fixture %}
+                {% set p = item.prediction %}
+                <a href="{{ url_for('match_detail', team_a=f.team_a, team_b=f.team_b, match_date=f.match_date) }}"
+                   class="block bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-green-700/50 transition-colors group">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-xs text-gray-500">{{ f.match_date }} &bull; {{ f.match_time or 'TBD' }}</span>
+                        {% if p.value_bets %}
+                        <span class="text-yellow-400" title="Value bet found">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        </span>
+                        {% endif %}
+                    </div>
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-center flex-1">
+                            <p class="text-sm font-semibold text-white group-hover:text-green-400 transition-colors">{{ f.team_a }}</p>
+                            <p class="text-2xl font-bold mt-1" style="color: {{ team_colors.get(f.team_a, '#888') }}">{{ (p.team_a_win_prob * 100)|round(1) }}%</p>
+                        </div>
+                        <div class="px-3 text-gray-600 text-lg font-light">vs</div>
+                        <div class="text-center flex-1">
+                            <p class="text-sm font-semibold text-white group-hover:text-green-400 transition-colors">{{ f.team_b }}</p>
+                            <p class="text-2xl font-bold mt-1" style="color: {{ team_colors.get(f.team_b, '#888') }}">{{ (p.team_b_win_prob * 100)|round(1) }}%</p>
+                        </div>
+                    </div>
+                    <!-- Probability bar -->
+                    <div class="flex rounded-full h-2 overflow-hidden bg-gray-800">
+                        <div class="h-full transition-all" style="width: {{ (p.team_a_win_prob * 100)|round(0) }}%; background-color: {{ team_colors.get(f.team_a, '#888') }}"></div>
+                        <div class="h-full transition-all" style="width: {{ (p.team_b_win_prob * 100)|round(0) }}%; background-color: {{ team_colors.get(f.team_b, '#888') }}"></div>
+                    </div>
+                    <div class="flex items-center justify-between mt-3">
+                        <span class="text-xs text-gray-500">{{ f.venue }}</span>
+                        <span class="text-xs px-2 py-0.5 rounded-full {% if p.confidence > 0.3 %}bg-green-900/50 text-green-400{% elif p.confidence > 0.15 %}bg-amber-900/50 text-amber-400{% else %}bg-gray-800 text-gray-400{% endif %}">
+                            {{ (p.confidence * 100)|round(0) }}% conf.
+                        </span>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Right sidebar -->
+        <div class="space-y-4">
+            <!-- Value Bets -->
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    Value Bets
+                </h3>
+                {% if value_bets %}
+                <div class="space-y-3">
+                    {% for vb in value_bets %}
+                    <div class="bg-gray-800 rounded-lg p-3">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-sm font-medium text-white">{{ vb.selection }}</span>
+                            <span class="text-xs px-2 py-0.5 bg-green-900/50 text-green-400 rounded-full">+{{ vb.edge }}% edge</span>
+                        </div>
+                        <p class="text-xs text-gray-400">{{ vb.match }}</p>
+                        <div class="flex items-center justify-between mt-2 text-xs text-gray-500">
+                            <span>{{ vb.bookmaker }} @ {{ vb.odds }}</span>
+                            <span>Stake: {{ vb.stake_pct }}% bankroll</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-sm text-gray-500">No value bets found today.</p>
+                {% endif %}
+            </div>
+
+            <!-- Recent Results -->
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                <h3 class="text-lg font-semibold text-white mb-4">Recent Results</h3>
+                <div class="space-y-3">
+                    {% for item in recent %}
+                    {% set f = item.fixture %}
+                    {% set p = item.prediction %}
+                    <div class="bg-gray-800 rounded-lg p-3">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-sm text-white">{{ f.team_a }} vs {{ f.team_b }}</span>
+                            {% if p and p.correct %}
+                            <span class="w-6 h-6 rounded-full bg-green-900/50 flex items-center justify-center">
+                                <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            </span>
+                            {% elif p %}
+                            <span class="w-6 h-6 rounded-full bg-red-900/50 flex items-center justify-center">
+                                <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </span>
+                            {% endif %}
+                        </div>
+                        <p class="text-xs text-green-400">{{ f.result or 'N/A' }}</p>
+                        {% if p %}
+                        <p class="text-xs text-gray-500 mt-1">Predicted: {{ p.predicted_winner }}</p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Model Health -->
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                <h3 class="text-lg font-semibold text-white mb-4">Model Health</h3>
+                <div class="space-y-2">
+                    {% for m in models %}
+                    <div class="flex items-center justify-between py-1.5">
+                        <span class="text-sm text-gray-300 capitalize">{{ m.model_name|replace('_', ' ') }}</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-gray-400">{{ (m.accuracy * 100)|round(1) }}%</span>
+                            {% if m.accuracy >= 0.65 %}
+                            <div class="w-2.5 h-2.5 rounded-full bg-green-500"></div>
+                            {% elif m.accuracy >= 0.55 %}
+                            <div class="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
+                            {% else %}
+                            <div class="w-2.5 h-2.5 rounded-full bg-red-500"></div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- API Usage -->
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                <h3 class="text-lg font-semibold text-white mb-4">API Usage</h3>
+                <div class="space-y-2">
+                    {% for a in api_usage %}
+                    <div class="flex items-center justify-between py-1">
+                        <span class="text-xs text-gray-400">{{ a.api_name }}</span>
+                        <div class="flex items-center gap-2">
+                            <div class="w-20 bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                                {% set pct = (a.calls_today / a.daily_limit * 100) if a.daily_limit > 0 else 0 %}
+                                <div class="h-full rounded-full {% if pct > 80 %}bg-red-500{% elif pct > 50 %}bg-amber-500{% else %}bg-green-500{% endif %}" style="width: {{ pct|round(0) }}%"></div>
+                            </div>
+                            <span class="text-xs text-gray-500 w-14 text-right">{{ a.calls_today }}/{{ a.daily_limit }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% block title %}Tournament - PSL 2026{% endblock %}
+{% block page_title %}Tournament{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="{ view: 'list' }">
+
+    <!-- Points Table -->
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
+        <h3 class="text-lg font-semibold text-white mb-4">Points Table</h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-xs text-gray-500 border-b border-gray-800 uppercase tracking-wider">
+                        <th class="py-3 text-left pl-3">#</th>
+                        <th class="py-3 text-left">Team</th>
+                        <th class="py-3 text-center">P</th>
+                        <th class="py-3 text-center">W</th>
+                        <th class="py-3 text-center">L</th>
+                        <th class="py-3 text-center">NR</th>
+                        <th class="py-3 text-center">Pts</th>
+                        <th class="py-3 text-center">NRR</th>
+                        <th class="py-3 text-center">Group</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in standings %}
+                    <tr class="border-b border-gray-800/50 {% if loop.index <= 4 %}bg-green-900/10{% endif %} hover:bg-gray-800/50 transition-colors">
+                        <td class="py-3 pl-3">
+                            {% if loop.index <= 4 %}
+                            <span class="w-6 h-6 rounded-full bg-green-900/50 flex items-center justify-center text-xs text-green-400 font-bold">{{ loop.index }}</span>
+                            {% else %}
+                            <span class="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center text-xs text-gray-500">{{ loop.index }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3">
+                            <div class="flex items-center gap-2">
+                                <div class="w-3 h-3 rounded-full" style="background-color: {{ s.color }}"></div>
+                                <span class="text-white font-medium">{{ s.team }}</span>
+                            </div>
+                        </td>
+                        <td class="py-3 text-center text-gray-300">{{ s.played }}</td>
+                        <td class="py-3 text-center text-green-400 font-medium">{{ s.won }}</td>
+                        <td class="py-3 text-center text-red-400">{{ s.lost }}</td>
+                        <td class="py-3 text-center text-gray-500">{{ s.nr }}</td>
+                        <td class="py-3 text-center text-white font-bold">{{ s.pts }}</td>
+                        <td class="py-3 text-center {% if s.nrr > 0 %}text-green-400{% elif s.nrr < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
+                            {{ '%+.3f'|format(s.nrr) }}
+                        </td>
+                        <td class="py-3 text-center">
+                            <span class="px-2 py-0.5 rounded-full text-xs {% if s.group == 'A' %}bg-blue-900/50 text-blue-400{% else %}bg-purple-900/50 text-purple-400{% endif %}">{{ s.group }}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="text-xs text-gray-600 mt-3">Top 4 teams (highlighted) qualify for playoffs</p>
+    </div>
+
+    <!-- Group Standings -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Group A -->
+        <div class="bg-gray-900 border border-blue-900/30 rounded-xl p-5">
+            <h3 class="text-sm font-semibold text-blue-400 uppercase tracking-wider mb-3">Group A</h3>
+            <div class="space-y-2">
+                {% for s in group_a %}
+                <div class="flex items-center justify-between p-3 bg-gray-800 rounded-lg">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-bold text-gray-500">{{ loop.index }}</span>
+                        <div class="w-2.5 h-2.5 rounded-full" style="background-color: {{ s.color }}"></div>
+                        <span class="text-sm text-white font-medium">{{ s.team }}</span>
+                    </div>
+                    <div class="flex items-center gap-4 text-xs">
+                        <span class="text-gray-400">{{ s.played }}P</span>
+                        <span class="text-green-400">{{ s.won }}W</span>
+                        <span class="text-white font-bold">{{ s.pts }} pts</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Group B -->
+        <div class="bg-gray-900 border border-purple-900/30 rounded-xl p-5">
+            <h3 class="text-sm font-semibold text-purple-400 uppercase tracking-wider mb-3">Group B</h3>
+            <div class="space-y-2">
+                {% for s in group_b %}
+                <div class="flex items-center justify-between p-3 bg-gray-800 rounded-lg">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-bold text-gray-500">{{ loop.index }}</span>
+                        <div class="w-2.5 h-2.5 rounded-full" style="background-color: {{ s.color }}"></div>
+                        <span class="text-sm text-white font-medium">{{ s.team }}</span>
+                    </div>
+                    <div class="flex items-center gap-4 text-xs">
+                        <span class="text-gray-400">{{ s.played }}P</span>
+                        <span class="text-green-400">{{ s.won }}W</span>
+                        <span class="text-white font-bold">{{ s.pts }} pts</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Schedule -->
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-white">Full Schedule</h3>
+            <div class="flex bg-gray-800 rounded-lg p-0.5">
+                <button @click="view = 'list'" :class="view === 'list' ? 'bg-gray-700 text-white' : 'text-gray-500'" class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors">List</button>
+                <button @click="view = 'compact'" :class="view === 'compact' ? 'bg-gray-700 text-white' : 'text-gray-500'" class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors">Compact</button>
+            </div>
+        </div>
+
+        <!-- List View -->
+        <div x-show="view === 'list'" class="space-y-3">
+            {% for f in fixtures %}
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-gray-800 rounded-lg hover:bg-gray-750 transition-colors gap-3
+                        {% if f.status == 'upcoming' %}border-l-4 border-amber-500{% else %}border-l-4 border-green-600{% endif %}">
+                <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-sm font-semibold text-white">{{ f.team_a }}</span>
+                        <span class="text-xs text-gray-500">vs</span>
+                        <span class="text-sm font-semibold text-white">{{ f.team_b }}</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-xs text-gray-500">
+                        <span>{{ f.match_date }}</span>
+                        <span>{{ f.match_time or '' }}</span>
+                        <span>{{ f.venue }}</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    {% if f.status == 'completed' %}
+                    <div class="text-right">
+                        <p class="text-xs text-green-400">{{ f.result or 'Completed' }}</p>
+                        {% if f.team_a_score %}
+                        <p class="text-xs text-gray-500">{{ f.team_a_score }} vs {{ f.team_b_score }}</p>
+                        {% endif %}
+                    </div>
+                    <span class="px-2 py-1 bg-green-900/50 text-green-400 text-xs rounded-full">Done</span>
+                    {% else %}
+                    {% if f.prediction %}
+                    <div class="text-right">
+                        <p class="text-xs text-gray-400">{{ f.prediction.predicted_winner }}</p>
+                        <p class="text-xs text-green-400">{{ (f.prediction.team_a_win_prob * 100)|round(0) }}% - {{ (f.prediction.team_b_win_prob * 100)|round(0) }}%</p>
+                    </div>
+                    {% endif %}
+                    <a href="{{ url_for('match_detail', team_a=f.team_a, team_b=f.team_b, match_date=f.match_date) }}"
+                       class="px-3 py-1 bg-green-900/50 hover:bg-green-900/70 text-green-400 text-xs rounded-full transition-colors">
+                        Predict
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Compact View -->
+        <div x-show="view === 'compact'" x-cloak class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-xs text-gray-500 border-b border-gray-800">
+                        <th class="py-2 text-left">Date</th>
+                        <th class="py-2 text-left">Match</th>
+                        <th class="py-2 text-left">Venue</th>
+                        <th class="py-2 text-center">Status</th>
+                        <th class="py-2 text-right">Result / Prediction</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for f in fixtures %}
+                    <tr class="border-b border-gray-800/50 hover:bg-gray-800/50">
+                        <td class="py-2 text-gray-400 text-xs">{{ f.match_date }}</td>
+                        <td class="py-2 text-white">{{ team_short.get(f.team_a, f.team_a[:3]) }} vs {{ team_short.get(f.team_b, f.team_b[:3]) }}</td>
+                        <td class="py-2 text-gray-500 text-xs">{{ f.venue[:20] }}...</td>
+                        <td class="py-2 text-center">
+                            {% if f.status == 'completed' %}
+                            <span class="text-xs text-green-400">Done</span>
+                            {% else %}
+                            <span class="text-xs text-amber-400">Upcoming</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-2 text-right text-xs">
+                            {% if f.status == 'completed' %}
+                            <span class="text-gray-300">{{ f.winner or 'N/A' }}</span>
+                            {% elif f.prediction %}
+                            <span class="text-green-400">{{ team_short.get(f.prediction.predicted_winner, '?') }} ({{ (f.prediction.confidence * 100)|round(0) }}%)</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Playoff Bracket placeholder -->
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
+        <h3 class="text-lg font-semibold text-white mb-4">Playoff Bracket</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+            <div class="space-y-4">
+                <p class="text-xs text-gray-500 uppercase tracking-wider text-center">Qualifier 1</p>
+                <div class="bg-gray-800 rounded-lg p-4 text-center border border-gray-700">
+                    <p class="text-sm text-gray-400">#1 vs #2</p>
+                    <p class="text-xs text-gray-600 mt-1">Winner to Final</p>
+                </div>
+                <p class="text-xs text-gray-500 uppercase tracking-wider text-center">Eliminator</p>
+                <div class="bg-gray-800 rounded-lg p-4 text-center border border-gray-700">
+                    <p class="text-sm text-gray-400">#3 vs #4</p>
+                    <p class="text-xs text-gray-600 mt-1">Loser eliminated</p>
+                </div>
+            </div>
+            <div class="flex justify-center">
+                <div class="space-y-4">
+                    <p class="text-xs text-gray-500 uppercase tracking-wider text-center">Qualifier 2</p>
+                    <div class="bg-gray-800 rounded-lg p-4 text-center border border-gray-700">
+                        <p class="text-sm text-gray-400">Loser Q1 vs Winner Elim.</p>
+                        <p class="text-xs text-gray-600 mt-1">Winner to Final</p>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-center">
+                <div class="space-y-4">
+                    <p class="text-xs text-yellow-500 uppercase tracking-wider text-center font-bold">Final</p>
+                    <div class="bg-gray-800 rounded-lg p-4 text-center border-2 border-yellow-600/50">
+                        <p class="text-sm text-yellow-400">Winner Q1 vs Winner Q2</p>
+                        <p class="text-xs text-yellow-600 mt-1">PSL 2026 Champion</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

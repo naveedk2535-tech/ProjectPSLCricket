@@ -1,312 +1,368 @@
 {% extends "base.html" %}
-{% block title %}{{ team_a }} vs {{ team_b }} - PSL Analytics{% endblock %}
+
+{% block title %}{{ prediction.team_a }} vs {{ prediction.team_b }}{% endblock %}
+
 {% block page_title %}Match Analysis{% endblock %}
+{% block breadcrumb %}
+<span class="text-gray-600">/</span>
+<a href="{{ url_for('dashboard') }}" class="text-gray-500 hover:text-gray-300">Dashboard</a>
+<span class="text-gray-600">/</span>
+<span class="text-gray-400">{{ prediction.team_a }} vs {{ prediction.team_b }}</span>
+{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
 
     <!-- Match Header -->
-    <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
-        <div class="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div class="text-center md:text-left">
-                <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">{{ match_date }} &bull; {{ fixture.match_time if fixture else 'TBD' }}</p>
-                <div class="flex items-center gap-4">
-                    <div class="text-center">
-                        <div class="w-14 h-14 rounded-xl flex items-center justify-center text-lg font-bold text-white" style="background-color: {{ team_colors.get(team_a, '#888') }}20; border: 2px solid {{ team_colors.get(team_a, '#888') }}">
-                            {{ team_short.get(team_a, team_a[:3]) }}
-                        </div>
-                        <p class="text-sm font-semibold text-white mt-2">{{ team_a }}</p>
-                    </div>
-                    <span class="text-2xl text-gray-600 font-light">vs</span>
-                    <div class="text-center">
-                        <div class="w-14 h-14 rounded-xl flex items-center justify-center text-lg font-bold text-white" style="background-color: {{ team_colors.get(team_b, '#888') }}20; border: 2px solid {{ team_colors.get(team_b, '#888') }}">
-                            {{ team_short.get(team_b, team_b[:3]) }}
-                        </div>
-                        <p class="text-sm font-semibold text-white mt-2">{{ team_b }}</p>
-                    </div>
+    <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6 md:p-8">
+        <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div class="text-center flex-1">
+                <div class="w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center text-2xl font-bold" style="background-color: {{ prediction.team_a_color|default('#10B981') }}20; color: {{ prediction.team_a_color|default('#10B981') }}">
+                    {{ prediction.team_a[:2]|upper }}
+                </div>
+                <h2 class="text-xl font-bold text-white">{{ prediction.team_a }}</h2>
+            </div>
+            <div class="text-center px-6">
+                <span class="text-3xl font-extrabold text-gray-600">VS</span>
+                <div class="mt-2 space-y-1">
+                    <p class="text-xs text-gray-500">{{ prediction.date }}</p>
+                    <p class="text-xs text-gray-500">{{ prediction.time|default('') }}</p>
+                    <p class="text-xs text-gray-400 font-medium">{{ prediction.venue|default('') }}</p>
                 </div>
             </div>
-            <div class="text-center md:text-right">
-                <p class="text-xs text-gray-500">{{ fixture.venue if fixture else 'TBD' }}</p>
-                {% if fixture and fixture.status == 'completed' %}
-                <span class="inline-block mt-2 px-3 py-1 bg-green-900/50 text-green-400 text-xs rounded-full">Completed</span>
-                {% else %}
-                <span class="inline-block mt-2 px-3 py-1 bg-amber-900/50 text-amber-400 text-xs rounded-full">Upcoming</span>
-                {% endif %}
+            <div class="text-center flex-1">
+                <div class="w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center text-2xl font-bold" style="background-color: {{ prediction.team_b_color|default('#F59E0B') }}20; color: {{ prediction.team_b_color|default('#F59E0B') }}">
+                    {{ prediction.team_b[:2]|upper }}
+                </div>
+                <h2 class="text-xl font-bold text-white">{{ prediction.team_b }}</h2>
             </div>
-        </div>
-    </div>
-
-    <!-- Weather Panel -->
-    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
-        <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Weather & Conditions</h3>
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
-            <div class="text-center">
-                <p class="text-2xl font-bold text-white">{{ prediction.weather.temperature }}&deg;C</p>
-                <p class="text-xs text-gray-500">Temperature</p>
-            </div>
-            <div class="text-center">
-                <p class="text-2xl font-bold text-white">{{ prediction.weather.humidity }}%</p>
-                <p class="text-xs text-gray-500">Humidity</p>
-            </div>
-            <div class="text-center">
-                <p class="text-2xl font-bold text-white">{{ prediction.weather.dew_point }}&deg;C</p>
-                <p class="text-xs text-gray-500">Dew Point</p>
-            </div>
-            <div class="text-center">
-                <p class="text-2xl font-bold {% if prediction.weather.dew_impact > 0.6 %}text-red-400{% elif prediction.weather.dew_impact > 0.3 %}text-amber-400{% else %}text-green-400{% endif %}">{{ (prediction.weather.dew_impact * 100)|round(0) }}%</p>
-                <p class="text-xs text-gray-500">Dew Impact</p>
-            </div>
-            <div class="text-center">
-                <p class="text-2xl font-bold text-white">{{ prediction.weather.wind_speed }} km/h</p>
-                <p class="text-xs text-gray-500">Wind</p>
-            </div>
-            <div class="text-center">
-                <p class="text-lg font-bold text-white">{{ prediction.weather.condition }}</p>
-                <p class="text-xs text-gray-500">Condition</p>
-            </div>
-        </div>
-        <div class="mt-3 p-3 bg-gray-800 rounded-lg text-sm text-gray-300">
-            <span class="text-amber-400 font-medium">Recommendation:</span> {{ prediction.weather.recommendation }}
         </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Main Prediction Panel -->
+        <!-- Main prediction panel -->
         <div class="lg:col-span-2 space-y-6">
 
-            <!-- Win Probability -->
-            <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
-                <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Win Probability</h3>
-                <div class="flex items-center justify-between mb-4">
+            <!-- Weather Card -->
+            {% if weather %}
+            <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+                <h3 class="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
+                    Weather Conditions
+                </h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div class="text-center">
-                        <p class="text-4xl font-bold" style="color: {{ team_colors.get(team_a, '#888') }}">{{ (prediction.team_a_win_prob * 100)|round(1) }}%</p>
-                        <p class="text-sm text-gray-400 mt-1">{{ team_a }}</p>
+                        <p class="text-2xl font-bold text-white">{{ weather.temperature|default('--') }}&deg;C</p>
+                        <p class="text-xs text-gray-500">Temperature</p>
                     </div>
-                    <div class="text-center px-4">
-                        <p class="text-xs text-gray-500 mb-2">Confidence</p>
-                        <div class="w-16 h-16 rounded-full border-4 flex items-center justify-center text-lg font-bold
-                                    {% if prediction.confidence > 0.3 %}border-green-500 text-green-400{% elif prediction.confidence > 0.15 %}border-amber-500 text-amber-400{% else %}border-gray-600 text-gray-400{% endif %}">
-                            {{ (prediction.confidence * 100)|round(0) }}%
+                    <div class="text-center">
+                        <p class="text-2xl font-bold text-white">{{ weather.humidity|default('--') }}%</p>
+                        <p class="text-xs text-gray-500">Humidity</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-2xl font-bold text-white">{{ weather.dew_point|default('--') }}&deg;C</p>
+                        <p class="text-xs text-gray-500">Dew Point</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-2xl font-bold {% if weather.dew_score|default(0) > 0.7 %}text-red-400{% elif weather.dew_score|default(0) > 0.4 %}text-amber-400{% else %}text-emerald-400{% endif %}">{{ "%.2f"|format(weather.dew_score|default(0)) }}</p>
+                        <p class="text-xs text-gray-500">Dew Score</p>
+                    </div>
+                </div>
+                {% if weather.recommendation %}
+                <div class="mt-4 bg-gray-900/50 rounded-lg p-3 border border-gray-700/50">
+                    <p class="text-xs text-gray-400">{{ weather.recommendation }}</p>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Main Prediction -->
+            <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+                <h3 class="text-sm font-bold text-white mb-5">Win Probability</h3>
+                <div class="relative">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-bold" style="color: {{ prediction.team_a_color|default('#10B981') }}">{{ prediction.team_a }}</span>
+                        <span class="text-sm font-bold" style="color: {{ prediction.team_b_color|default('#F59E0B') }}">{{ prediction.team_b }}</span>
+                    </div>
+                    <div class="h-6 bg-gray-700 rounded-full overflow-hidden flex">
+                        <div class="h-full bg-emerald-500 flex items-center justify-center text-xs font-bold text-white transition-all duration-700"
+                             style="width: {{ prediction.team_a_win|default(50) }}%">
+                            {% if prediction.team_a_win|default(50) > 15 %}{{ "%.1f"|format(prediction.team_a_win|default(50)) }}%{% endif %}
+                        </div>
+                        <div class="h-full bg-amber-500 flex items-center justify-center text-xs font-bold text-white transition-all duration-700"
+                             style="width: {{ prediction.team_b_win|default(50) }}%">
+                            {% if prediction.team_b_win|default(50) > 15 %}{{ "%.1f"|format(prediction.team_b_win|default(50)) }}%{% endif %}
                         </div>
                     </div>
-                    <div class="text-center">
-                        <p class="text-4xl font-bold" style="color: {{ team_colors.get(team_b, '#888') }}">{{ (prediction.team_b_win_prob * 100)|round(1) }}%</p>
-                        <p class="text-sm text-gray-400 mt-1">{{ team_b }}</p>
-                    </div>
                 </div>
-                <!-- Probability bar -->
-                <div class="flex rounded-full h-4 overflow-hidden bg-gray-800 mb-3">
-                    <div class="h-full transition-all" style="width: {{ (prediction.team_a_win_prob * 100)|round(0) }}%; background-color: {{ team_colors.get(team_a, '#888') }}"></div>
-                    <div class="h-full transition-all" style="width: {{ (prediction.team_b_win_prob * 100)|round(0) }}%; background-color: {{ team_colors.get(team_b, '#888') }}"></div>
+                <div class="mt-6 bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 text-center">
+                    <p class="text-xs text-emerald-400 uppercase tracking-wider mb-1">Predicted Winner</p>
+                    <p class="text-2xl font-extrabold text-white">{{ prediction.predicted_winner|default('TBD') }}</p>
+                    <p class="text-sm text-gray-400 mt-1">Confidence: <span class="font-semibold {% if prediction.confidence == 'high' %}text-emerald-400{% elif prediction.confidence == 'medium' %}text-amber-400{% else %}text-gray-400{% endif %}">{{ prediction.confidence|default('medium')|capitalize }}</span></p>
                 </div>
-                <div class="text-center p-3 bg-gray-800 rounded-lg">
-                    <p class="text-xs text-gray-500">Predicted Winner</p>
-                    <p class="text-xl font-bold text-green-400">{{ prediction.predicted_winner }}</p>
+                {% if prediction.toss_recommendation %}
+                <div class="mt-4 bg-gray-900/50 rounded-lg p-3 border border-gray-700/50 flex items-center gap-3">
+                    <svg class="w-5 h-5 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <p class="text-sm text-gray-300">Toss: <span class="font-semibold text-white">{{ prediction.toss_recommendation }}</span></p>
                 </div>
-                <!-- Chart canvas for donut -->
-                <div class="mt-4 flex justify-center">
-                    <canvas id="winProbChart" class="max-w-[250px] max-h-[250px]"></canvas>
-                </div>
+                {% endif %}
             </div>
 
-            <!-- Model Breakdown -->
-            <div class="bg-gray-900 border border-gray-800 rounded-xl p-6" x-data="{ open: null }">
-                <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Model Breakdown</h3>
+            <!-- Model Breakdown Accordion -->
+            <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6" x-data="{ openModel: null }">
+                <h3 class="text-sm font-bold text-white mb-4">Model Breakdown</h3>
                 <div class="space-y-2">
-                    {% for model_name in ['batting_bowling', 'elo', 'xgboost', 'sentiment'] %}
-                    {% set mo = prediction.model_outputs[model_name] %}
-                    <div class="bg-gray-800 rounded-lg overflow-hidden">
-                        <button @click="open = open === '{{ model_name }}' ? null : '{{ model_name }}'"
-                                class="w-full flex items-center justify-between p-4 hover:bg-gray-750 transition-colors">
-                            <div class="flex items-center gap-3">
-                                <span class="text-sm font-semibold text-white capitalize">{{ model_name|replace('_', ' ') }}</span>
-                                <span class="text-xs text-gray-500">Weight: {{ (prediction.weights.get(model_name, 0.25) * 100)|round(0) }}%</span>
-                            </div>
-                            <div class="flex items-center gap-3">
-                                <span class="text-sm font-medium" style="color: {{ team_colors.get(team_a, '#888') }}">{{ (mo.team_a * 100)|round(1) }}%</span>
-                                <span class="text-gray-600">|</span>
-                                <span class="text-sm font-medium" style="color: {{ team_colors.get(team_b, '#888') }}">{{ (mo.team_b * 100)|round(1) }}%</span>
-                                <svg class="w-4 h-4 text-gray-500 transition-transform" :class="open === '{{ model_name }}' ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                            </div>
+                    <!-- Batting/Bowling -->
+                    <div class="border border-gray-700 rounded-lg overflow-hidden">
+                        <button @click="openModel = openModel === 'batting' ? null : 'batting'" class="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-700/30 transition-colors">
+                            <span class="text-sm font-medium text-gray-300">Batting &amp; Bowling Analysis</span>
+                            <svg class="w-4 h-4 text-gray-500 transition-transform duration-200" :class="openModel === 'batting' ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                         </button>
-                        <div x-show="open === '{{ model_name }}'" x-cloak x-transition class="px-4 pb-4">
-                            <div class="flex rounded-full h-2 overflow-hidden bg-gray-700 mb-3">
-                                <div class="h-full" style="width: {{ (mo.team_a * 100)|round(0) }}%; background-color: {{ team_colors.get(team_a, '#888') }}"></div>
-                                <div class="h-full" style="width: {{ (mo.team_b * 100)|round(0) }}%; background-color: {{ team_colors.get(team_b, '#888') }}"></div>
-                            </div>
-                            {% if model_name == 'batting_bowling' %}
-                            <p class="text-xs text-gray-400">Compares batting and bowling strength of both teams based on recent stats, player matchups, and venue performance.</p>
-                            {% elif model_name == 'elo' %}
-                            <p class="text-xs text-gray-400">Elo rating system adapted for T20 cricket. Updates after each match based on result and margin.</p>
-                            {% elif model_name == 'xgboost' %}
-                            <p class="text-xs text-gray-400 mb-2">Gradient boosted model using historical features.</p>
-                            <p class="text-xs text-gray-500 font-medium mb-1">Top Feature Importances:</p>
-                            <div class="space-y-1">
-                                {% for fname, fval in prediction.xgb_importances[:5] %}
-                                <div class="flex items-center gap-2">
-                                    <span class="text-xs text-gray-400 w-28 truncate">{{ fname }}</span>
-                                    <div class="flex-1 bg-gray-700 rounded-full h-1.5">
-                                        <div class="h-full bg-green-500 rounded-full" style="width: {{ (fval * 500)|round(0) }}%"></div>
-                                    </div>
-                                    <span class="text-xs text-gray-500 w-10 text-right">{{ fval }}</span>
+                        <div x-show="openModel === 'batting'" x-collapse class="px-4 pb-4 border-t border-gray-700">
+                            <div class="grid grid-cols-2 gap-4 mt-3">
+                                <div>
+                                    <p class="text-xs text-gray-500 mb-2">{{ prediction.team_a }}</p>
+                                    <p class="text-sm text-gray-300">Batting: <span class="text-white font-semibold">{{ prediction.batting_bowling.team_a_batting|default('-') }}</span></p>
+                                    <p class="text-sm text-gray-300">Bowling: <span class="text-white font-semibold">{{ prediction.batting_bowling.team_a_bowling|default('-') }}</span></p>
+                                    <p class="text-sm text-gray-300 mt-1">Projected: <span class="text-emerald-400 font-semibold">{{ prediction.batting_bowling.team_a_projected|default('-') }}</span></p>
                                 </div>
+                                <div>
+                                    <p class="text-xs text-gray-500 mb-2">{{ prediction.team_b }}</p>
+                                    <p class="text-sm text-gray-300">Batting: <span class="text-white font-semibold">{{ prediction.batting_bowling.team_b_batting|default('-') }}</span></p>
+                                    <p class="text-sm text-gray-300">Bowling: <span class="text-white font-semibold">{{ prediction.batting_bowling.team_b_bowling|default('-') }}</span></p>
+                                    <p class="text-sm text-gray-300 mt-1">Projected: <span class="text-emerald-400 font-semibold">{{ prediction.batting_bowling.team_b_projected|default('-') }}</span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Elo -->
+                    <div class="border border-gray-700 rounded-lg overflow-hidden">
+                        <button @click="openModel = openModel === 'elo' ? null : 'elo'" class="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-700/30 transition-colors">
+                            <span class="text-sm font-medium text-gray-300">Elo Ratings</span>
+                            <svg class="w-4 h-4 text-gray-500 transition-transform duration-200" :class="openModel === 'elo' ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <div x-show="openModel === 'elo'" x-collapse class="px-4 pb-4 border-t border-gray-700">
+                            <div class="grid grid-cols-2 gap-4 mt-3">
+                                <div>
+                                    <p class="text-xs text-gray-500 mb-1">{{ prediction.team_a }}</p>
+                                    <p class="text-2xl font-bold text-white">{{ prediction.elo.team_a_rating|default('-') }}</p>
+                                    <p class="text-xs text-gray-400">Form: {{ prediction.elo.team_a_form|default('-') }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500 mb-1">{{ prediction.team_b }}</p>
+                                    <p class="text-2xl font-bold text-white">{{ prediction.elo.team_b_rating|default('-') }}</p>
+                                    <p class="text-xs text-gray-400">Form: {{ prediction.elo.team_b_form|default('-') }}</p>
+                                </div>
+                            </div>
+                            <div class="mt-3 bg-gray-900/50 rounded-lg p-2 text-center">
+                                <span class="text-xs text-gray-400">Elo Difference: </span>
+                                <span class="text-sm font-bold text-white">{{ prediction.elo.diff|default(0) }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- XGBoost -->
+                    <div class="border border-gray-700 rounded-lg overflow-hidden">
+                        <button @click="openModel = openModel === 'xgb' ? null : 'xgb'" class="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-700/30 transition-colors">
+                            <span class="text-sm font-medium text-gray-300">XGBoost Features</span>
+                            <svg class="w-4 h-4 text-gray-500 transition-transform duration-200" :class="openModel === 'xgb' ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <div x-show="openModel === 'xgb'" x-collapse class="px-4 pb-4 border-t border-gray-700">
+                            <div class="mt-3" style="height: 280px;">
+                                <canvas id="featureImportanceChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sentiment -->
+                    <div class="border border-gray-700 rounded-lg overflow-hidden">
+                        <button @click="openModel = openModel === 'sentiment' ? null : 'sentiment'" class="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-700/30 transition-colors">
+                            <span class="text-sm font-medium text-gray-300">Sentiment Analysis</span>
+                            <svg class="w-4 h-4 text-gray-500 transition-transform duration-200" :class="openModel === 'sentiment' ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <div x-show="openModel === 'sentiment'" x-collapse class="px-4 pb-4 border-t border-gray-700">
+                            <div class="grid grid-cols-2 gap-4 mt-3">
+                                <div>
+                                    <p class="text-xs text-gray-500 mb-1">{{ prediction.team_a }}</p>
+                                    <p class="text-lg font-bold {% if prediction.sentiment.team_a_score|default(0) > 0 %}text-emerald-400{% elif prediction.sentiment.team_a_score|default(0) < 0 %}text-red-400{% else %}text-gray-400{% endif %}">{{ "%.2f"|format(prediction.sentiment.team_a_score|default(0)) }}</p>
+                                    <p class="text-xs text-gray-500">{{ prediction.sentiment.team_a_trend|default('neutral') }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500 mb-1">{{ prediction.team_b }}</p>
+                                    <p class="text-lg font-bold {% if prediction.sentiment.team_b_score|default(0) > 0 %}text-emerald-400{% elif prediction.sentiment.team_b_score|default(0) < 0 %}text-red-400{% else %}text-gray-400{% endif %}">{{ "%.2f"|format(prediction.sentiment.team_b_score|default(0)) }}</p>
+                                    <p class="text-xs text-gray-500">{{ prediction.sentiment.team_b_trend|default('neutral') }}</p>
+                                </div>
+                            </div>
+                            {% if prediction.sentiment.keywords %}
+                            <div class="mt-3 flex flex-wrap gap-1.5">
+                                {% for kw in prediction.sentiment.keywords %}
+                                <span class="px-2 py-0.5 bg-gray-700 rounded-full text-xs text-gray-300">{{ kw }}</span>
                                 {% endfor %}
                             </div>
-                            {% elif model_name == 'sentiment' %}
-                            <p class="text-xs text-gray-400">Social media and news sentiment analysis from Reddit and news sources.</p>
                             {% endif %}
                         </div>
                     </div>
-                    {% endfor %}
+
+                    <!-- Ensemble -->
+                    <div class="border border-gray-700 rounded-lg overflow-hidden">
+                        <button @click="openModel = openModel === 'ensemble' ? null : 'ensemble'" class="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-700/30 transition-colors">
+                            <span class="text-sm font-medium text-gray-300">Ensemble Weights</span>
+                            <svg class="w-4 h-4 text-gray-500 transition-transform duration-200" :class="openModel === 'ensemble' ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <div x-show="openModel === 'ensemble'" x-collapse class="px-4 pb-4 border-t border-gray-700">
+                            <div class="space-y-2 mt-3">
+                                {% for name, weight in prediction.ensemble_weights|default({})|dictsort %}
+                                <div class="flex items-center gap-3">
+                                    <span class="text-xs text-gray-400 w-32">{{ name|replace('_', ' ')|title }}</span>
+                                    <div class="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
+                                        <div class="h-full bg-emerald-500 rounded-full" style="width: {{ weight * 100 }}%"></div>
+                                    </div>
+                                    <span class="text-xs text-gray-300 font-mono w-12 text-right">{{ "%.0f"|format(weight * 100) }}%</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <p class="text-xs text-gray-500 mt-3">Blend: {{ prediction.blend_method|default('weighted average') }}</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <!-- Odds Comparison -->
-            <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
-                <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Odds Comparison</h3>
+            {% if odds %}
+            <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+                <h3 class="text-sm font-bold text-white mb-4">Odds Comparison</h3>
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead>
-                            <tr class="text-xs text-gray-500 border-b border-gray-800">
-                                <th class="py-2 text-left">Bookmaker</th>
-                                <th class="py-2 text-center">{{ team_short.get(team_a, 'A') }} Odds</th>
-                                <th class="py-2 text-center">{{ team_short.get(team_a, 'A') }} Implied</th>
-                                <th class="py-2 text-center">{{ team_short.get(team_b, 'B') }} Odds</th>
-                                <th class="py-2 text-center">{{ team_short.get(team_b, 'B') }} Implied</th>
-                                <th class="py-2 text-center">Edge A</th>
-                                <th class="py-2 text-center">Edge B</th>
+                            <tr class="text-left text-gray-500 border-b border-gray-700">
+                                <th class="pb-3 font-medium">Bookmaker</th>
+                                <th class="pb-3 font-medium">{{ prediction.team_a }}</th>
+                                <th class="pb-3 font-medium">{{ prediction.team_b }}</th>
+                                <th class="pb-3 font-medium">Implied %</th>
+                                <th class="pb-3 font-medium">Our %</th>
+                                <th class="pb-3 font-medium">Edge</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <tr class="border-b border-gray-800">
-                                <td class="py-2 text-gray-400 font-medium">Our Model</td>
-                                <td class="py-2 text-center text-white">{{ (1 / prediction.team_a_win_prob)|round(2) }}</td>
-                                <td class="py-2 text-center text-green-400">{{ (prediction.team_a_win_prob * 100)|round(1) }}%</td>
-                                <td class="py-2 text-center text-white">{{ (1 / prediction.team_b_win_prob)|round(2) }}</td>
-                                <td class="py-2 text-center text-green-400">{{ (prediction.team_b_win_prob * 100)|round(1) }}%</td>
-                                <td class="py-2 text-center text-gray-600">-</td>
-                                <td class="py-2 text-center text-gray-600">-</td>
-                            </tr>
-                            {% for oc in prediction.odds_comparison %}
-                            <tr class="border-b border-gray-800">
-                                <td class="py-2 text-gray-300">{{ oc.bookmaker }}</td>
-                                <td class="py-2 text-center text-white">{{ oc.team_a_odds }}</td>
-                                <td class="py-2 text-center text-gray-400">{{ (oc.team_a_implied * 100)|round(1) }}%</td>
-                                <td class="py-2 text-center text-white">{{ oc.team_b_odds }}</td>
-                                <td class="py-2 text-center text-gray-400">{{ (oc.team_b_implied * 100)|round(1) }}%</td>
-                                <td class="py-2 text-center {% if oc.edge_a > 5 %}text-green-400 font-semibold{% elif oc.edge_a > 0 %}text-green-400{% else %}text-red-400{% endif %}">{{ oc.edge_a }}%</td>
-                                <td class="py-2 text-center {% if oc.edge_b > 5 %}text-green-400 font-semibold{% elif oc.edge_b > 0 %}text-green-400{% else %}text-red-400{% endif %}">{{ oc.edge_b }}%</td>
+                        <tbody class="divide-y divide-gray-800">
+                            {% for o in odds %}
+                            <tr>
+                                <td class="py-2.5 text-gray-300">{{ o.bookmaker }}</td>
+                                <td class="py-2.5 text-white font-mono">{{ o.team_a_odds }}</td>
+                                <td class="py-2.5 text-white font-mono">{{ o.team_b_odds }}</td>
+                                <td class="py-2.5 text-gray-400 font-mono">{{ "%.1f"|format(o.implied_prob) }}%</td>
+                                <td class="py-2.5 text-gray-300 font-mono">{{ "%.1f"|format(o.our_prob) }}%</td>
+                                <td class="py-2.5 font-mono font-semibold {% if o.edge > 5 %}text-emerald-400{% elif o.edge > 0 %}text-gray-300{% else %}text-red-400{% endif %}">
+                                    {{ "%.1f"|format(o.edge) }}%
+                                    {% if o.edge > 5 %}<span class="ml-1 text-xs text-emerald-400">VALUE</span>{% endif %}
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
             </div>
+            {% endif %}
 
             <!-- Prop Bets -->
-            <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
-                <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Prop Bet Predictions</h3>
+            {% if prop_bets %}
+            <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+                <h3 class="text-sm font-bold text-white mb-4">Prop Bets</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div class="bg-gray-800 rounded-lg p-4">
-                        <p class="text-xs text-gray-500 mb-1">Total Runs O/U</p>
-                        <p class="text-2xl font-bold text-white">{{ prediction.props.total_runs.line }}</p>
-                        <div class="flex items-center justify-between mt-2 text-xs">
-                            <span class="text-green-400">Over: {{ prediction.props.total_runs.over_pct }}%</span>
-                            <span class="text-red-400">Under: {{ prediction.props.total_runs.under_pct }}%</span>
+                    <div class="bg-gray-900/50 border border-gray-700/50 rounded-lg p-4">
+                        <p class="text-xs text-gray-500 mb-2">Total Runs O/U</p>
+                        <p class="text-lg font-bold text-white">{{ prop_bets.total_runs_line|default('-') }}</p>
+                        <div class="flex justify-between mt-2 text-xs">
+                            <span class="text-emerald-400">Over: {{ "%.0f"|format(prop_bets.over_pct|default(50)) }}%</span>
+                            <span class="text-amber-400">Under: {{ "%.0f"|format(prop_bets.under_pct|default(50)) }}%</span>
                         </div>
                     </div>
-                    <div class="bg-gray-800 rounded-lg p-4">
-                        <p class="text-xs text-gray-500 mb-1">Total Wides</p>
-                        <p class="text-2xl font-bold text-white">{{ prediction.props.total_wides }}</p>
-                        <p class="text-xs text-gray-500 mt-2">Combined both innings</p>
+                    <div class="bg-gray-900/50 border border-gray-700/50 rounded-lg p-4">
+                        <p class="text-xs text-gray-500 mb-2">Wides Predicted</p>
+                        <p class="text-lg font-bold text-white">{{ prop_bets.wides|default('-') }}</p>
                     </div>
-                    <div class="bg-gray-800 rounded-lg p-4">
-                        <p class="text-xs text-gray-500 mb-1">Total No-Balls</p>
-                        <p class="text-2xl font-bold text-white">{{ prediction.props.total_no_balls }}</p>
-                        <p class="text-xs text-gray-500 mt-2">Combined both innings</p>
+                    <div class="bg-gray-900/50 border border-gray-700/50 rounded-lg p-4">
+                        <p class="text-xs text-gray-500 mb-2">No-Balls Predicted</p>
+                        <p class="text-lg font-bold text-white">{{ prop_bets.no_balls|default('-') }}</p>
                     </div>
-                    <div class="bg-gray-800 rounded-lg p-4">
-                        <p class="text-xs text-gray-500 mb-1">Total Sixes</p>
-                        <p class="text-2xl font-bold text-white">{{ prediction.props.total_sixes }}</p>
-                        <p class="text-xs text-gray-500 mt-2">Combined both innings</p>
+                    <div class="bg-gray-900/50 border border-gray-700/50 rounded-lg p-4">
+                        <p class="text-xs text-gray-500 mb-2">Sixes Predicted</p>
+                        <p class="text-lg font-bold text-white">{{ prop_bets.sixes|default('-') }}</p>
                     </div>
-                    <div class="bg-gray-800 rounded-lg p-4">
-                        <p class="text-xs text-gray-500 mb-1">Total Fours</p>
-                        <p class="text-2xl font-bold text-white">{{ prediction.props.total_fours }}</p>
-                        <p class="text-xs text-gray-500 mt-2">Combined both innings</p>
+                    <div class="bg-gray-900/50 border border-gray-700/50 rounded-lg p-4">
+                        <p class="text-xs text-gray-500 mb-2">Fours Predicted</p>
+                        <p class="text-lg font-bold text-white">{{ prop_bets.fours|default('-') }}</p>
                     </div>
                 </div>
             </div>
+            {% endif %}
+
         </div>
 
-        <!-- Right Column -->
+        <!-- Right sidebar -->
         <div class="space-y-6">
 
-            <!-- Signals -->
-            <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Key Signals</h3>
+            <!-- H2H Record -->
+            <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+                <h3 class="text-sm font-bold text-white mb-4">Head to Head</h3>
+                {% if h2h %}
+                <div class="text-center mb-4">
+                    <div class="flex items-center justify-center gap-4">
+                        <div class="text-center">
+                            <p class="text-2xl font-bold text-emerald-400">{{ h2h.team_a_wins|default(0) }}</p>
+                            <p class="text-xs text-gray-500">{{ prediction.team_a }}</p>
+                        </div>
+                        <span class="text-gray-600 text-xl">-</span>
+                        <div class="text-center">
+                            <p class="text-2xl font-bold text-amber-400">{{ h2h.team_b_wins|default(0) }}</p>
+                            <p class="text-xs text-gray-500">{{ prediction.team_b }}</p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">{{ h2h.total|default(0) }} total meetings</p>
+                </div>
+                {% if h2h.last_5 %}
                 <div class="space-y-2">
-                    {% for sig in prediction.signals %}
-                    <div class="flex items-start gap-2 p-2 rounded-lg
-                                {% if sig.type == 'warning' %}bg-red-900/20{% elif sig.type == 'positive' %}bg-green-900/20{% else %}bg-blue-900/20{% endif %}">
-                        {% if sig.type == 'warning' %}
-                        <svg class="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
-                        {% elif sig.type == 'positive' %}
-                        <svg class="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        {% else %}
-                        <svg class="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        {% endif %}
-                        <span class="text-xs {% if sig.type == 'warning' %}text-red-300{% elif sig.type == 'positive' %}text-green-300{% else %}text-blue-300{% endif %}">{{ sig.text }}</span>
+                    <p class="text-xs text-gray-500 font-medium">Last 5 Meetings</p>
+                    {% for game in h2h.last_5 %}
+                    <div class="flex items-center justify-between bg-gray-900/50 rounded-lg px-3 py-2 text-xs">
+                        <span class="text-gray-400">{{ game.date }}</span>
+                        <span class="font-medium {% if game.winner == prediction.team_a %}text-emerald-400{% else %}text-amber-400{% endif %}">{{ game.winner }}</span>
                     </div>
                     {% endfor %}
                 </div>
+                {% endif %}
+                {% else %}
+                <p class="text-sm text-gray-500 text-center py-4">No head-to-head data available</p>
+                {% endif %}
             </div>
 
-            <!-- H2H -->
-            <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Head to Head</h3>
-                <div class="flex items-center justify-between mb-3">
-                    <div class="text-center">
-                        <p class="text-2xl font-bold" style="color: {{ team_colors.get(team_a, '#888') }}">{{ prediction.h2h.team_a_wins }}</p>
-                        <p class="text-xs text-gray-500">{{ team_short.get(team_a, 'A') }} Wins</p>
-                    </div>
-                    <div class="text-center">
-                        <p class="text-lg text-gray-500">{{ prediction.h2h.total }}</p>
-                        <p class="text-xs text-gray-500">Total</p>
-                    </div>
-                    <div class="text-center">
-                        <p class="text-2xl font-bold" style="color: {{ team_colors.get(team_b, '#888') }}">{{ prediction.h2h.team_b_wins }}</p>
-                        <p class="text-xs text-gray-500">{{ team_short.get(team_b, 'B') }} Wins</p>
-                    </div>
-                </div>
-                <p class="text-xs text-gray-500 mb-2">Last 5 meetings:</p>
-                <div class="flex gap-1">
-                    {% for winner in prediction.h2h.last_5 %}
-                    <span class="flex-1 py-1 rounded text-xs text-center font-medium text-white" style="background-color: {{ team_colors.get(winner, '#888') }}40">
-                        {{ team_short.get(winner, '?') }}
-                    </span>
-                    {% endfor %}
-                </div>
-            </div>
-
-            <!-- Recent Form -->
-            <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Recent Form (Last 5)</h3>
-                <div class="space-y-3">
+            <!-- Form Guide -->
+            <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+                <h3 class="text-sm font-bold text-white mb-4">Recent Form</h3>
+                <div class="space-y-4">
                     <div>
-                        <p class="text-xs text-gray-400 mb-1.5">{{ team_a }}</p>
-                        <div class="flex gap-1">
-                            {% for r in prediction.form_a %}
-                            <span class="w-8 h-8 rounded flex items-center justify-center text-xs font-bold {% if r == 'W' %}bg-green-900/50 text-green-400{% else %}bg-red-900/50 text-red-400{% endif %}">{{ r }}</span>
+                        <p class="text-xs text-gray-500 mb-2">{{ prediction.team_a }}</p>
+                        <div class="flex gap-1.5">
+                            {% for result in form.team_a|default([]) %}
+                            <span class="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold
+                                {% if result == 'W' %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/30
+                                {% elif result == 'L' %}bg-red-500/20 text-red-400 border border-red-500/30
+                                {% else %}bg-gray-700 text-gray-400 border border-gray-600{% endif %}">
+                                {{ result }}
+                            </span>
                             {% endfor %}
                         </div>
                     </div>
                     <div>
-                        <p class="text-xs text-gray-400 mb-1.5">{{ team_b }}</p>
-                        <div class="flex gap-1">
-                            {% for r in prediction.form_b %}
-                            <span class="w-8 h-8 rounded flex items-center justify-center text-xs font-bold {% if r == 'W' %}bg-green-900/50 text-green-400{% else %}bg-red-900/50 text-red-400{% endif %}">{{ r }}</span>
+                        <p class="text-xs text-gray-500 mb-2">{{ prediction.team_b }}</p>
+                        <div class="flex gap-1.5">
+                            {% for result in form.team_b|default([]) %}
+                            <span class="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold
+                                {% if result == 'W' %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/30
+                                {% elif result == 'L' %}bg-red-500/20 text-red-400 border border-red-500/30
+                                {% else %}bg-gray-700 text-gray-400 border border-gray-600{% endif %}">
+                                {{ result }}
+                            </span>
                             {% endfor %}
                         </div>
                     </div>
@@ -314,83 +370,89 @@
             </div>
 
             <!-- Venue Stats -->
-            <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Venue Stats</h3>
-                <p class="text-xs text-green-400 mb-3">{{ prediction.venue_stats.name }}</p>
-                <div class="space-y-2 text-sm">
-                    <div class="flex justify-between">
-                        <span class="text-gray-400">Avg 1st Inn.</span>
-                        <span class="text-white font-medium">{{ prediction.venue_stats.avg_first_innings }}</span>
+            <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+                <h3 class="text-sm font-bold text-white mb-4">Venue Stats</h3>
+                {% if venue_stats %}
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-gray-400">Avg 1st Innings</span>
+                        <span class="text-sm font-semibold text-white">{{ venue_stats.avg_first_innings|default('-') }}</span>
                     </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-400">Avg 2nd Inn.</span>
-                        <span class="text-white font-medium">{{ prediction.venue_stats.avg_second_innings }}</span>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-gray-400">Avg 2nd Innings</span>
+                        <span class="text-sm font-semibold text-white">{{ venue_stats.avg_second_innings|default('-') }}</span>
                     </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-400">Chase Win %</span>
-                        <span class="text-white font-medium">{{ prediction.venue_stats.chase_win_pct }}%</span>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-gray-400">Chase Win %</span>
+                        <span class="text-sm font-semibold text-white">{{ venue_stats.chase_pct|default('-') }}%</span>
                     </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-400">Bat First %</span>
-                        <span class="text-white font-medium">{{ prediction.venue_stats.toss_bat_first_pct }}%</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-400">Pace Wickets</span>
-                        <span class="text-white font-medium">{{ prediction.venue_stats.pace_wickets_pct }}%</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-400">Spin Wickets</span>
-                        <span class="text-white font-medium">{{ prediction.venue_stats.spin_wickets_pct }}%</span>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-gray-400">Pace/Spin Split</span>
+                        <span class="text-sm font-semibold text-white">{{ venue_stats.pace_pct|default(50) }}/{{ venue_stats.spin_pct|default(50) }}</span>
                     </div>
                 </div>
+                {% else %}
+                <p class="text-sm text-gray-500 text-center py-4">No venue data available</p>
+                {% endif %}
             </div>
 
-            <!-- Toss Analysis -->
-            <div class="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Toss Analysis</h3>
-                <div class="flex gap-4 mb-3">
-                    <div class="flex-1 bg-gray-800 rounded-lg p-3 text-center">
-                        <p class="text-lg font-bold text-white">{{ prediction.toss.bat_first_win_pct }}%</p>
-                        <p class="text-xs text-gray-500">Bat First Win</p>
-                    </div>
-                    <div class="flex-1 bg-gray-800 rounded-lg p-3 text-center">
-                        <p class="text-lg font-bold text-white">{{ prediction.toss.bowl_first_win_pct }}%</p>
-                        <p class="text-xs text-gray-500">Bowl First Win</p>
-                    </div>
-                </div>
-                <div class="p-3 bg-green-900/20 border border-green-800/30 rounded-lg">
-                    <p class="text-sm text-green-400 font-medium">{{ prediction.toss.recommended }}</p>
-                    <p class="text-xs text-gray-400 mt-1">{{ prediction.toss.reasoning }}</p>
-                </div>
+            <!-- Key Signals -->
+            {% if key_signals %}
+            <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+                <h3 class="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    Key Signals
+                </h3>
+                <ul class="space-y-2">
+                    {% for signal in key_signals %}
+                    <li class="flex items-start gap-2 text-sm">
+                        <svg class="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4"/></svg>
+                        <span class="text-gray-300">{{ signal }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
             </div>
+            {% endif %}
+
         </div>
     </div>
+
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const ctx = document.getElementById('winProbChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: ['{{ team_a }}', '{{ team_b }}'],
-            datasets: [{
-                data: [{{ (prediction.team_a_win_prob * 100)|round(1) }}, {{ (prediction.team_b_win_prob * 100)|round(1) }}],
-                backgroundColor: ['{{ team_colors.get(team_a, "#00A651") }}', '{{ team_colors.get(team_b, "#E3263A") }}'],
-                borderWidth: 0,
-                cutout: '70%'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: { display: true, position: 'bottom', labels: { color: '#9CA3AF', padding: 15 } }
-            }
+    const featureData = {{ prediction.xgboost_features|default([])|tojson }};
+    if (featureData.length > 0) {
+        const ctx = document.getElementById('featureImportanceChart');
+        if (ctx) {
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: featureData.map(f => f.name),
+                    datasets: [{
+                        label: 'Feature Importance',
+                        data: featureData.map(f => f.importance),
+                        backgroundColor: 'rgba(16, 185, 129, 0.6)',
+                        borderColor: 'rgba(16, 185, 129, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: 'rgba(75,85,99,0.3)' }, ticks: { color: '#9CA3AF' } },
+                        y: { grid: { display: false }, ticks: { color: '#D1D5DB', font: { size: 11 } } }
+                    }
+                }
+            });
         }
-    });
+    }
 });
 </script>
 {% endblock %}

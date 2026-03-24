@@ -1,0 +1,70 @@
+version,2.2.0
+info,balls_per_over,6
+info,team,Multan Sultans
+info,team,Quetta Gladiators
+info,gender,male
+info,season,2025
+info,date,2025/05/18
+info,event,Pakistan Super League
+info,match_number,28
+info,venue,Rawalpindi Cricket Stadium
+info,city,Rawalpindi
+info,toss_winner,Multan Sultans
+info,toss_decision,bat
+info,player_of_match,Hassan Nawaz
+info,umpire,Asif Yaqoob
+info,umpire,Faisal Afridi
+info,reserve_umpire,Rashid Riaz
+info,tv_umpire,Ahsan Raza
+info,match_referee,Muhammad Javed
+info,winner,Quetta Gladiators
+info,winner_wickets,2
+info,player,Multan Sultans,Yasir Khan
+info,player,Multan Sultans,Mohammad Rizwan
+info,player,Multan Sultans,Jahanzaib Sultan
+info,player,Multan Sultans,Tayyab Tahir
+info,player,Multan Sultans,Hamayun Altaf
+info,player,Multan Sultans,Aamer Azmat
+info,player,Multan Sultans,P Hatzoglou
+info,player,Multan Sultans,Shahid Aziz
+info,player,Multan Sultans,Mohammad Hasnain
+info,player,Multan Sultans,Ubaid Shah
+info,player,Multan Sultans,D Madushanka
+info,player,Quetta Gladiators,Saud Shakeel
+info,player,Quetta Gladiators,Khawaja Nafay
+info,player,Quetta Gladiators,WIA Fernando
+info,player,Quetta Gladiators,Hassan Nawaz
+info,player,Quetta Gladiators,LD Chandimal
+info,player,Quetta Gladiators,Danish Aziz
+info,player,Quetta Gladiators,Faheem Ashraf
+info,player,Quetta Gladiators,Mohammad Wasim
+info,player,Quetta Gladiators,Abrar Ahmed
+info,player,Quetta Gladiators,Khurram Shahzad
+info,player,Quetta Gladiators,Usman Tariq
+info,registry,people,Aamer Azmat,935678ee
+info,registry,people,Abrar Ahmed,abb7c76c
+info,registry,people,Ahsan Raza,e0e5b209
+info,registry,people,Asif Yaqoob,6b35790c
+info,registry,people,D Madushanka,de7d833e
+info,registry,people,Danish Aziz,a4799701
+info,registry,people,Faheem Ashraf,bd4ea627
+info,registry,people,Faisal Afridi,ed0bc503
+info,registry,people,Hamayun Altaf,bc3e60ae
+info,registry,people,Hassan Nawaz,26a8b2fe
+info,registry,people,Jahanzaib Sultan,f4426e58
+info,registry,people,Khawaja Nafay,3cf54e77
+info,registry,people,Khurram Shahzad,27c5715d
+info,registry,people,LD Chandimal,8dd02a98
+info,registry,people,Mohammad Hasnain,8596fe80
+info,registry,people,Mohammad Rizwan,2f26ac1a
+info,registry,people,Mohammad Wasim,9e9af5f2
+info,registry,people,Muhammad Javed,bde2d0ea
+info,registry,people,P Hatzoglou,6f95e5fa
+info,registry,people,Rashid Riaz,fb82725e
+info,registry,people,Saud Shakeel,d07c1b2f
+info,registry,people,Shahid Aziz,8d964ae6
+info,registry,people,Tayyab Tahir,431f8af4
+info,registry,people,Ubaid Shah,cc535250
+info,registry,people,Usman Tariq,e94d1dcd
+info,registry,people,WIA Fernando,9550470d
+info,registry,people,Yasir Khan,4f1bb625

@@ -1,0 +1,70 @@
+version,2.2.0
+info,balls_per_over,6
+info,team,Multan Sultans
+info,team,Peshawar Zalmi
+info,gender,male
+info,season,2025
+info,date,2025/05/05
+info,event,Pakistan Super League
+info,match_number,25
+info,venue,Multan Cricket Stadium
+info,city,Multan
+info,toss_winner,Multan Sultans
+info,toss_decision,bat
+info,player_of_match,Ahmed Daniyal
+info,umpire,Abdul Muqeet
+info,umpire,PR Reiffel
+info,reserve_umpire,Faisal Afridi
+info,tv_umpire,Rashid Riaz
+info,match_referee,Ali Naqvi
+info,winner,Peshawar Zalmi
+info,winner_wickets,7
+info,player,Multan Sultans,Yasir Khan
+info,player,Multan Sultans,Mohammad Rizwan
+info,player,Multan Sultans,Tayyab Tahir
+info,player,Multan Sultans,SD Hope
+info,player,Multan Sultans,AJ Turner
+info,player,Multan Sultans,Aamer Azmat
+info,player,Multan Sultans,Shahid Aziz
+info,player,Multan Sultans,DJ Willey
+info,player,Multan Sultans,Ubaid Shah
+info,player,Multan Sultans,Mohammad Hasnain
+info,player,Multan Sultans,Faisal Akram
+info,player,Peshawar Zalmi,MJ Owen
+info,player,Peshawar Zalmi,Saim Ayub
+info,player,Peshawar Zalmi,Babar Azam
+info,player,Peshawar Zalmi,M Bryant
+info,player,Peshawar Zalmi,Mohammad Haris
+info,player,Peshawar Zalmi,Maaz Sadaqat
+info,player,Peshawar Zalmi,L Wood
+info,player,Peshawar Zalmi,AS Joseph
+info,player,Peshawar Zalmi,Ali Raza
+info,player,Peshawar Zalmi,Ahmed Daniyal
+info,player,Peshawar Zalmi,Hussain Talat
+info,registry,people,AJ Turner,ff1e12a0
+info,registry,people,AS Joseph,b0946605
+info,registry,people,Aamer Azmat,935678ee
+info,registry,people,Abdul Muqeet,e1ac7789
+info,registry,people,Ahmed Daniyal,9656afbf
+info,registry,people,Ali Naqvi,3c89fc88
+info,registry,people,Ali Raza,53834b36
+info,registry,people,Babar Azam,8a75e999
+info,registry,people,DJ Willey,7f048519
+info,registry,people,Faisal Afridi,ed0bc503
+info,registry,people,Faisal Akram,14661bf3
+info,registry,people,Hussain Talat,bb4b445b
+info,registry,people,L Wood,65b6943c
+info,registry,people,M Bryant,f32012f4
+info,registry,people,MJ Owen,f2c936d7
+info,registry,people,Maaz Sadaqat,6d9560f3
+info,registry,people,Mohammad Haris,ff3f6fc1
+info,registry,people,Mohammad Hasnain,8596fe80
+info,registry,people,Mohammad Rizwan,2f26ac1a
+info,registry,people,PR Reiffel,c9354f29
+info,registry,people,Rashid Riaz,fb82725e
+info,registry,people,SD Hope,1fc6ef83
+info,registry,people,Saim Ayub,33609a8c
+info,registry,people,Shahid Aziz,8d964ae6
+info,registry,people,Tayyab Tahir,431f8af4
+info,registry,people,Ubaid Shah,cc535250
+info,registry,people,Yasir Khan,4f1bb625

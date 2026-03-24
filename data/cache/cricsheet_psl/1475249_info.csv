@@ -1,0 +1,70 @@
+version,2.2.0
+info,balls_per_over,6
+info,team,Multan Sultans
+info,team,Lahore Qalandars
+info,gender,male
+info,season,2025
+info,date,2025/04/22
+info,event,Pakistan Super League
+info,match_number,12
+info,venue,Multan Cricket Stadium
+info,city,Multan
+info,toss_winner,Multan Sultans
+info,toss_decision,bat
+info,player_of_match,Yasir Khan
+info,umpire,CM Brown
+info,umpire,Rashid Riaz
+info,reserve_umpire,Nasir Hussain
+info,tv_umpire,Ahsan Raza
+info,match_referee,Ali Naqvi
+info,winner,Multan Sultans
+info,winner_runs,33
+info,player,Multan Sultans,Yasir Khan
+info,player,Multan Sultans,Mohammad Rizwan
+info,player,Multan Sultans,Usman Khan
+info,player,Multan Sultans,AJ Turner
+info,player,Multan Sultans,MG Bracewell
+info,player,Multan Sultans,Iftikhar Ahmed
+info,player,Multan Sultans,Kamran Ghulam
+info,player,Multan Sultans,DJ Willey
+info,player,Multan Sultans,Usama Mir
+info,player,Multan Sultans,J Little
+info,player,Multan Sultans,Ubaid Shah
+info,player,Lahore Qalandars,Fakhar Zaman
+info,player,Lahore Qalandars,Muhammad Naeem
+info,player,Lahore Qalandars,Abdullah Shafique
+info,player,Lahore Qalandars,DJ Mitchell
+info,player,Lahore Qalandars,SW Billings
+info,player,Lahore Qalandars,Rishad Hossain
+info,player,Lahore Qalandars,Sikandar Raza
+info,player,Lahore Qalandars,Shaheen Shah Afridi
+info,player,Lahore Qalandars,Asif Afridi
+info,player,Lahore Qalandars,Haris Rauf
+info,player,Lahore Qalandars,Zaman Khan
+info,registry,people,AJ Turner,ff1e12a0
+info,registry,people,Abdullah Shafique,fc2fffb5
+info,registry,people,Ahsan Raza,e0e5b209
+info,registry,people,Ali Naqvi,3c89fc88
+info,registry,people,Asif Afridi,9489623e
+info,registry,people,CM Brown,448f4f1c
+info,registry,people,DJ Mitchell,eade4650
+info,registry,people,DJ Willey,7f048519
+info,registry,people,Fakhar Zaman,1777c020
+info,registry,people,Haris Rauf,24bb1c2f
+info,registry,people,Iftikhar Ahmed,29e253dd
+info,registry,people,J Little,9061a703
+info,registry,people,Kamran Ghulam,35f4cf7e
+info,registry,people,MG Bracewell,e38bce7a
+info,registry,people,Mohammad Rizwan,2f26ac1a
+info,registry,people,Muhammad Naeem,e35b7b91
+info,registry,people,Nasir Hussain,5b2fe85b
+info,registry,people,Rashid Riaz,fb82725e
+info,registry,people,Rishad Hossain,5935d694
+info,registry,people,SW Billings,c16d4035
+info,registry,people,Shaheen Shah Afridi,45a7e761
+info,registry,people,Sikandar Raza,26d041c4
+info,registry,people,Ubaid Shah,cc535250
+info,registry,people,Usama Mir,6dd8b88c
+info,registry,people,Usman Khan,bafb9238
+info,registry,people,Yasir Khan,4f1bb625
+info,registry,people,Zaman Khan,28392e11

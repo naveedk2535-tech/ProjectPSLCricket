@@ -1,0 +1,68 @@
+version,2.2.0
+info,balls_per_over,6
+info,team,Lahore Qalandars
+info,team,Quetta Gladiators
+info,gender,male
+info,season,2025
+info,date,2025/05/01
+info,event,Pakistan Super League
+info,match_number,21
+info,venue,"Gaddafi Stadium, Lahore"
+info,city,Lahore
+info,toss_winner,Quetta Gladiators
+info,toss_decision,field
+info,umpire,Faisal Afridi
+info,umpire,PR Reiffel
+info,reserve_umpire,Tariq Rasheed
+info,tv_umpire,Asif Yaqoob
+info,match_referee,RS Madugalle
+info,outcome,no result
+info,player,Lahore Qalandars,Fakhar Zaman
+info,player,Lahore Qalandars,Muhammad Naeem
+info,player,Lahore Qalandars,Abdullah Shafique
+info,player,Lahore Qalandars,DJ Mitchell
+info,player,Lahore Qalandars,SW Billings
+info,player,Lahore Qalandars,Sikandar Raza
+info,player,Lahore Qalandars,Asif Ali
+info,player,Lahore Qalandars,Shaheen Shah Afridi
+info,player,Lahore Qalandars,TK Curran
+info,player,Lahore Qalandars,Haris Rauf
+info,player,Lahore Qalandars,Asif Afridi
+info,player,Quetta Gladiators,Saud Shakeel
+info,player,Quetta Gladiators,FH Allen
+info,player,Quetta Gladiators,RR Rossouw
+info,player,Quetta Gladiators,BKG Mendis
+info,player,Quetta Gladiators,MS Chapman
+info,player,Quetta Gladiators,Faheem Ashraf
+info,player,Quetta Gladiators,Hassan Nawaz
+info,player,Quetta Gladiators,Mohammad Wasim
+info,player,Quetta Gladiators,Mohammad Zeeshan
+info,player,Quetta Gladiators,Khurram Shahzad
+info,player,Quetta Gladiators,Abrar Ahmed
+info,registry,people,Abdullah Shafique,fc2fffb5
+info,registry,people,Abrar Ahmed,abb7c76c
+info,registry,people,Asif Afridi,9489623e
+info,registry,people,Asif Ali,0a4736eb
+info,registry,people,Asif Yaqoob,6b35790c
+info,registry,people,BKG Mendis,5d1e7582
+info,registry,people,DJ Mitchell,eade4650
+info,registry,people,FH Allen,bf74b130
+info,registry,people,Faheem Ashraf,bd4ea627
+info,registry,people,Faisal Afridi,ed0bc503
+info,registry,people,Fakhar Zaman,1777c020
+info,registry,people,Haris Rauf,24bb1c2f
+info,registry,people,Hassan Nawaz,26a8b2fe
+info,registry,people,Khurram Shahzad,27c5715d
+info,registry,people,MS Chapman,7fa12533
+info,registry,people,Mohammad Wasim,9e9af5f2
+info,registry,people,Mohammad Zeeshan,68d11420
+info,registry,people,Muhammad Naeem,e35b7b91
+info,registry,people,PR Reiffel,c9354f29
+info,registry,people,RR Rossouw,cad00a4d
+info,registry,people,RS Madugalle,766b5798
+info,registry,people,SW Billings,c16d4035
+info,registry,people,Saud Shakeel,d07c1b2f
+info,registry,people,Shaheen Shah Afridi,45a7e761
+info,registry,people,Sikandar Raza,26d041c4
+info,registry,people,TK Curran,e86754b2
+info,registry,people,Tariq Rasheed,1008518c

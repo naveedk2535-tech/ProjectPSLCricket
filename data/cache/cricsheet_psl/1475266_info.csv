@@ -1,0 +1,70 @@
+version,2.2.0
+info,balls_per_over,6
+info,team,Lahore Qalandars
+info,team,Peshawar Zalmi
+info,gender,male
+info,season,2025
+info,date,2025/05/18
+info,event,Pakistan Super League
+info,match_number,29
+info,venue,Rawalpindi Cricket Stadium
+info,city,Rawalpindi
+info,toss_winner,Peshawar Zalmi
+info,toss_decision,field
+info,player_of_match,Salman Mirza
+info,umpire,Ahsan Raza
+info,umpire,Rashid Riaz
+info,reserve_umpire,Abdul Muqeet
+info,tv_umpire,Asif Yaqoob
+info,match_referee,Ali Naqvi
+info,winner,Lahore Qalandars
+info,winner_runs,26
+info,player,Lahore Qalandars,Fakhar Zaman
+info,player,Lahore Qalandars,Muhammad Naeem
+info,player,Lahore Qalandars,Abdullah Shafique
+info,player,Lahore Qalandars,MDKJ Perera
+info,player,Lahore Qalandars,Sikandar Raza
+info,player,Lahore Qalandars,Asif Ali
+info,player,Lahore Qalandars,Shakib Al Hasan
+info,player,Lahore Qalandars,Shaheen Shah Afridi
+info,player,Lahore Qalandars,Haris Rauf
+info,player,Lahore Qalandars,Zaman Khan
+info,player,Lahore Qalandars,Salman Mirza
+info,player,Peshawar Zalmi,Saim Ayub
+info,player,Peshawar Zalmi,Mohammad Haris
+info,player,Peshawar Zalmi,Babar Azam
+info,player,Peshawar Zalmi,M Bryant
+info,player,Peshawar Zalmi,Maaz Sadaqat
+info,player,Peshawar Zalmi,Abdul Samad
+info,player,Peshawar Zalmi,DR Sams
+info,player,Peshawar Zalmi,L Wood
+info,player,Peshawar Zalmi,Ahmed Daniyal
+info,player,Peshawar Zalmi,Mohammad Ali
+info,player,Peshawar Zalmi,Ali Raza
+info,registry,people,Abdul Muqeet,e1ac7789
+info,registry,people,Abdul Samad,8e554b6b
+info,registry,people,Abdullah Shafique,fc2fffb5
+info,registry,people,Ahmed Daniyal,9656afbf
+info,registry,people,Ahsan Raza,e0e5b209
+info,registry,people,Ali Naqvi,3c89fc88
+info,registry,people,Ali Raza,53834b36
+info,registry,people,Asif Ali,0a4736eb
+info,registry,people,Asif Yaqoob,6b35790c
+info,registry,people,Babar Azam,8a75e999
+info,registry,people,DR Sams,caf69bf7
+info,registry,people,Fakhar Zaman,1777c020
+info,registry,people,Haris Rauf,24bb1c2f
+info,registry,people,L Wood,65b6943c
+info,registry,people,M Bryant,f32012f4
+info,registry,people,MDKJ Perera,f21043a5
+info,registry,people,Maaz Sadaqat,6d9560f3
+info,registry,people,Mohammad Ali,a86a37ab
+info,registry,people,Mohammad Haris,ff3f6fc1
+info,registry,people,Muhammad Naeem,e35b7b91
+info,registry,people,Rashid Riaz,fb82725e
+info,registry,people,Saim Ayub,33609a8c
+info,registry,people,Salman Mirza,7ab1eab7
+info,registry,people,Shaheen Shah Afridi,45a7e761
+info,registry,people,Shakib Al Hasan,7dc35884
+info,registry,people,Sikandar Raza,26d041c4
+info,registry,people,Zaman Khan,28392e11

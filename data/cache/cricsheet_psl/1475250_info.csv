@@ -1,0 +1,71 @@
+version,2.2.0
+info,balls_per_over,6
+info,team,Multan Sultans
+info,team,Islamabad United
+info,gender,male
+info,season,2025
+info,date,2025/04/23
+info,event,Pakistan Super League
+info,match_number,13
+info,venue,Multan Cricket Stadium
+info,city,Multan
+info,toss_winner,Multan Sultans
+info,toss_decision,bat
+info,player_of_match,AGS Gous
+info,umpire,Ahsan Raza
+info,umpire,CM Brown
+info,reserve_umpire,Nasir Hussain
+info,tv_umpire,Rashid Riaz
+info,match_referee,Ali Naqvi
+info,winner,Islamabad United
+info,winner_wickets,7
+info,player,Multan Sultans,Yasir Khan
+info,player,Multan Sultans,Mohammad Rizwan
+info,player,Multan Sultans,Usman Khan
+info,player,Multan Sultans,MG Bracewell
+info,player,Multan Sultans,Iftikhar Ahmed
+info,player,Multan Sultans,CJ Jordan
+info,player,Multan Sultans,Kamran Ghulam
+info,player,Multan Sultans,Tayyab Tahir
+info,player,Multan Sultans,Usama Mir
+info,player,Multan Sultans,J Little
+info,player,Multan Sultans,Ubaid Shah
+info,player,Islamabad United,Sahibzada Farhan
+info,player,Islamabad United,AGS Gous
+info,player,Islamabad United,C Munro
+info,player,Islamabad United,Mohammad Nawaz
+info,player,Islamabad United,Saad Masood
+info,player,Islamabad United,Shadab Khan
+info,player,Islamabad United,Haider Ali
+info,player,Islamabad United,JO Holder
+info,player,Islamabad United,Imad Wasim
+info,player,Islamabad United,RP Meredith
+info,player,Islamabad United,Salman Irshad
+info,registry,people,AGS Gous,d1305df0
+info,registry,people,Ahsan Raza,e0e5b209
+info,registry,people,Ali Naqvi,3c89fc88
+info,registry,people,C Munro,af2c687b
+info,registry,people,CJ Jordan,ffe699c0
+info,registry,people,CM Brown,448f4f1c
+info,registry,people,Haider Ali,c13e34f4
+info,registry,people,Iftikhar Ahmed,29e253dd
+info,registry,people,Imad Wasim,9cb8d7a6
+info,registry,people,J Little,9061a703
+info,registry,people,JO Holder,0f721006
+info,registry,people,Kamran Ghulam,35f4cf7e
+info,registry,people,MG Bracewell,e38bce7a
+info,registry,people,Mohammad Nawaz,3086f7a4
+info,registry,people,Mohammad Rizwan,2f26ac1a
+info,registry,people,Muhammad Shahzad,f59b2121
+info,registry,people,Nasir Hussain,5b2fe85b
+info,registry,people,RP Meredith,64775749
+info,registry,people,Rashid Riaz,fb82725e
+info,registry,people,Saad Masood,b2498b5d
+info,registry,people,Sahibzada Farhan,1aba45cd
+info,registry,people,Salman Irshad,30afc92b
+info,registry,people,Shadab Khan,9de62878
+info,registry,people,Tayyab Tahir,431f8af4
+info,registry,people,Ubaid Shah,cc535250
+info,registry,people,Usama Mir,6dd8b88c
+info,registry,people,Usman Khan,bafb9238
+info,registry,people,Yasir Khan,4f1bb625

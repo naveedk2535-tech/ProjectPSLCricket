@@ -1,0 +1,70 @@
+version,2.2.0
+info,balls_per_over,6
+info,team,Peshawar Zalmi
+info,team,Multan Sultans
+info,gender,male
+info,season,2025
+info,date,2025/04/19
+info,event,Pakistan Super League
+info,match_number,9
+info,venue,Rawalpindi Cricket Stadium
+info,city,Rawalpindi
+info,toss_winner,Peshawar Zalmi
+info,toss_decision,bat
+info,player_of_match,Abdul Samad
+info,umpire,Aleem Dar
+info,umpire,CM Brown
+info,reserve_umpire,Zulfiqar Jan
+info,tv_umpire,Rashid Riaz
+info,match_referee,RS Madugalle
+info,winner,Peshawar Zalmi
+info,winner_runs,120
+info,player,Peshawar Zalmi,Saim Ayub
+info,player,Peshawar Zalmi,Babar Azam
+info,player,Peshawar Zalmi,T Kohler-Cadmore
+info,player,Peshawar Zalmi,Mohammad Haris
+info,player,Peshawar Zalmi,Hussain Talat
+info,player,Peshawar Zalmi,MJ Owen
+info,player,Peshawar Zalmi,Abdul Samad
+info,player,Peshawar Zalmi,AS Joseph
+info,player,Peshawar Zalmi,L Wood
+info,player,Peshawar Zalmi,Arif Yaqoob
+info,player,Peshawar Zalmi,Ali Raza
+info,player,Multan Sultans,Mohammad Rizwan
+info,player,Multan Sultans,SD Hope
+info,player,Multan Sultans,Usman Khan
+info,player,Multan Sultans,Kamran Ghulam
+info,player,Multan Sultans,MG Bracewell
+info,player,Multan Sultans,AJ Turner
+info,player,Multan Sultans,Iftikhar Ahmed
+info,player,Multan Sultans,DJ Willey
+info,player,Multan Sultans,Usama Mir
+info,player,Multan Sultans,Ubaid Shah
+info,player,Multan Sultans,Akif Javed
+info,registry,people,AJ Turner,ff1e12a0
+info,registry,people,AS Joseph,b0946605
+info,registry,people,Abdul Samad,8e554b6b
+info,registry,people,Akif Javed,99d7d5b7
+info,registry,people,Aleem Dar,f02778d1
+info,registry,people,Ali Raza,53834b36
+info,registry,people,Arif Yaqoob,6bb9e53b
+info,registry,people,Babar Azam,8a75e999
+info,registry,people,CM Brown,448f4f1c
+info,registry,people,DJ Willey,7f048519
+info,registry,people,Hussain Talat,bb4b445b
+info,registry,people,Iftikhar Ahmed,29e253dd
+info,registry,people,Kamran Ghulam,35f4cf7e
+info,registry,people,L Wood,65b6943c
+info,registry,people,MG Bracewell,e38bce7a
+info,registry,people,MJ Owen,f2c936d7
+info,registry,people,Mohammad Haris,ff3f6fc1
+info,registry,people,Mohammad Rizwan,2f26ac1a
+info,registry,people,RS Madugalle,766b5798
+info,registry,people,Rashid Riaz,fb82725e
+info,registry,people,SD Hope,1fc6ef83
+info,registry,people,Saim Ayub,33609a8c
+info,registry,people,T Kohler-Cadmore,f836b33d
+info,registry,people,Ubaid Shah,cc535250
+info,registry,people,Usama Mir,6dd8b88c
+info,registry,people,Usman Khan,bafb9238
+info,registry,people,Zulfiqar Jan,006de9ca

@@ -19,18 +19,26 @@ def get_connection():
     if not hasattr(_local, "connection") or _local.connection is None:
         _local.connection = sqlite3.connect(DB_PATH, timeout=30)
         _local.connection.row_factory = sqlite3.Row
-        _local.connection.execute("PRAGMA journal_mode=WAL")
+        _local.connection.execute("PRAGMA journal_mode=DELETE")
         _local.connection.execute("PRAGMA foreign_keys=ON")
         _local.connection.execute("PRAGMA busy_timeout=5000")
     return _local.connection
 
 
 def init_db():
-    """Initialize database from schema.sql."""
+    """Initialize database tables using CREATE TABLE IF NOT EXISTS."""
     conn = get_connection()
     if os.path.exists(SCHEMA_PATH):
         with open(SCHEMA_PATH, "r") as f:
-            conn.executescript(f.read())
+            schema = f.read()
+        # Only run CREATE TABLE statements (skip PRAGMAs which can cause issues)
+        for statement in schema.split(';'):
+            statement = statement.strip()
+            if statement and ('CREATE TABLE' in statement or 'CREATE INDEX' in statement):
+                try:
+                    conn.execute(statement)
+                except sqlite3.OperationalError:
+                    pass  # Table/index already exists
         conn.commit()
 
 

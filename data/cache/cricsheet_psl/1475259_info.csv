@@ -1,0 +1,70 @@
+version,2.2.0
+info,balls_per_over,6
+info,team,Islamabad United
+info,team,Peshawar Zalmi
+info,gender,male
+info,season,2025
+info,date,2025/05/02
+info,event,Pakistan Super League
+info,match_number,22
+info,venue,"Gaddafi Stadium, Lahore"
+info,city,Lahore
+info,toss_winner,Islamabad United
+info,toss_decision,bat
+info,player_of_match,Maaz Sadaqat
+info,umpire,AG Wharf
+info,umpire,Faisal Afridi
+info,reserve_umpire,Nasir Hussain
+info,tv_umpire,Asif Yaqoob
+info,match_referee,RS Mahanama
+info,winner,Peshawar Zalmi
+info,winner_wickets,6
+info,player,Islamabad United,Sahibzada Farhan
+info,player,Islamabad United,KR Mayers
+info,player,Islamabad United,C Munro
+info,player,Islamabad United,Agha Salman
+info,player,Islamabad United,Shadab Khan
+info,player,Islamabad United,Azam Khan
+info,player,Islamabad United,Saad Masood
+info,player,Islamabad United,Imad Wasim
+info,player,Islamabad United,BJ Dwarshuis
+info,player,Islamabad United,Naseem Shah
+info,player,Islamabad United,RP Meredith
+info,player,Peshawar Zalmi,MJ Owen
+info,player,Peshawar Zalmi,Saim Ayub
+info,player,Peshawar Zalmi,Babar Azam
+info,player,Peshawar Zalmi,Mohammad Haris
+info,player,Peshawar Zalmi,Maaz Sadaqat
+info,player,Peshawar Zalmi,M Bryant
+info,player,Peshawar Zalmi,L Wood
+info,player,Peshawar Zalmi,AS Joseph
+info,player,Peshawar Zalmi,Mohammad Ali
+info,player,Peshawar Zalmi,Ahmed Daniyal
+info,player,Peshawar Zalmi,Hussain Talat
+info,registry,people,AG Wharf,2e0fcc58
+info,registry,people,AS Joseph,b0946605
+info,registry,people,Agha Salman,89c16049
+info,registry,people,Ahmed Daniyal,9656afbf
+info,registry,people,Asif Yaqoob,6b35790c
+info,registry,people,Azam Khan,ee8f1a6d
+info,registry,people,BJ Dwarshuis,e1b9f3a9
+info,registry,people,Babar Azam,8a75e999
+info,registry,people,C Munro,af2c687b
+info,registry,people,Faisal Afridi,ed0bc503
+info,registry,people,Hussain Talat,bb4b445b
+info,registry,people,Imad Wasim,9cb8d7a6
+info,registry,people,KR Mayers,73c18486
+info,registry,people,L Wood,65b6943c
+info,registry,people,M Bryant,f32012f4
+info,registry,people,MJ Owen,f2c936d7
+info,registry,people,Maaz Sadaqat,6d9560f3
+info,registry,people,Mohammad Ali,a86a37ab
+info,registry,people,Mohammad Haris,ff3f6fc1
+info,registry,people,Naseem Shah,9c9af282
+info,registry,people,Nasir Hussain,5b2fe85b
+info,registry,people,RP Meredith,64775749
+info,registry,people,RS Mahanama,57910393
+info,registry,people,Saad Masood,b2498b5d
+info,registry,people,Sahibzada Farhan,1aba45cd
+info,registry,people,Saim Ayub,33609a8c
+info,registry,people,Shadab Khan,9de62878

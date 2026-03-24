@@ -1,0 +1,72 @@
+version,2.2.0
+info,balls_per_over,6
+info,team,Islamabad United
+info,team,Peshawar Zalmi
+info,gender,male
+info,season,2025
+info,date,2025/04/14
+info,event,Pakistan Super League
+info,match_number,5
+info,venue,Rawalpindi Cricket Stadium
+info,city,Rawalpindi
+info,toss_winner,Islamabad United
+info,toss_decision,bat
+info,player_of_match,Sahibzada Farhan
+info,umpire,Aleem Dar
+info,umpire,Nasir Hussain
+info,reserve_umpire,Zulfiqar Jan
+info,tv_umpire,Rashid Riaz
+info,match_referee,RS Madugalle
+info,winner,Islamabad United
+info,winner_runs,102
+info,player,Islamabad United,Sahibzada Farhan
+info,player,Islamabad United,AGS Gous
+info,player,Islamabad United,C Munro
+info,player,Islamabad United,Azam Khan
+info,player,Islamabad United,Agha Salman
+info,player,Islamabad United,JO Holder
+info,player,Islamabad United,BJ Dwarshuis
+info,player,Islamabad United,Shadab Khan
+info,player,Islamabad United,Imad Wasim
+info,player,Islamabad United,Naseem Shah
+info,player,Islamabad United,Saad Masood
+info,player,Peshawar Zalmi,Saim Ayub
+info,player,Peshawar Zalmi,Babar Azam
+info,player,Peshawar Zalmi,MJ Owen
+info,player,Peshawar Zalmi,Mohammad Haris
+info,player,Peshawar Zalmi,T Kohler-Cadmore
+info,player,Peshawar Zalmi,Hussain Talat
+info,player,Peshawar Zalmi,GF Linde
+info,player,Peshawar Zalmi,AS Joseph
+info,player,Peshawar Zalmi,Sufiyan Muqeem
+info,player,Peshawar Zalmi,Mohammad Ali
+info,player,Peshawar Zalmi,Ali Raza
+info,registry,people,AGS Gous,d1305df0
+info,registry,people,AS Joseph,b0946605
+info,registry,people,Agha Salman,89c16049
+info,registry,people,Aleem Dar,f02778d1
+info,registry,people,Ali Raza,53834b36
+info,registry,people,Azam Khan,ee8f1a6d
+info,registry,people,BJ Dwarshuis,e1b9f3a9
+info,registry,people,Babar Azam,8a75e999
+info,registry,people,C Munro,af2c687b
+info,registry,people,GF Linde,e5437608
+info,registry,people,Hussain Talat,bb4b445b
+info,registry,people,Imad Wasim,9cb8d7a6
+info,registry,people,JO Holder,0f721006
+info,registry,people,MJ Owen,f2c936d7
+info,registry,people,Mohammad Ali,a86a37ab
+info,registry,people,Mohammad Haris,ff3f6fc1
+info,registry,people,Mohammad Nawaz (3),3086f7a4
+info,registry,people,Muhammad Shahzad,f59b2121
+info,registry,people,Naseem Shah,9c9af282
+info,registry,people,Nasir Hussain,5b2fe85b
+info,registry,people,RS Madugalle,766b5798
+info,registry,people,Rashid Riaz,fb82725e
+info,registry,people,Saad Masood,b2498b5d
+info,registry,people,Sahibzada Farhan,1aba45cd
+info,registry,people,Saim Ayub,33609a8c
+info,registry,people,Shadab Khan,9de62878
+info,registry,people,Sufiyan Muqeem,4277234d
+info,registry,people,T Kohler-Cadmore,f836b33d
+info,registry,people,Zulfiqar Jan,006de9ca

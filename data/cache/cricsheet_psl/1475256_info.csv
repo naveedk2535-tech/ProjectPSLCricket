@@ -1,0 +1,73 @@
+version,2.2.0
+info,balls_per_over,6
+info,team,Lahore Qalandars
+info,team,Islamabad United
+info,gender,male
+info,season,2025
+info,date,2025/04/30
+info,event,Pakistan Super League
+info,match_number,19
+info,venue,"Gaddafi Stadium, Lahore"
+info,city,Lahore
+info,toss_winner,Islamabad United
+info,toss_decision,field
+info,player_of_match,Sikandar Raza
+info,umpire,Asif Yaqoob
+info,umpire,PR Reiffel
+info,reserve_umpire,Tariq Rasheed
+info,tv_umpire,Faisal Afridi
+info,match_referee,Muhammad Javed
+info,winner,Lahore Qalandars
+info,winner_runs,88
+info,player,Lahore Qalandars,Fakhar Zaman
+info,player,Lahore Qalandars,Muhammad Naeem
+info,player,Lahore Qalandars,Abdullah Shafique
+info,player,Lahore Qalandars,DJ Mitchell
+info,player,Lahore Qalandars,SW Billings
+info,player,Lahore Qalandars,Sikandar Raza
+info,player,Lahore Qalandars,Asif Ali
+info,player,Lahore Qalandars,Shaheen Shah Afridi
+info,player,Lahore Qalandars,TK Curran
+info,player,Lahore Qalandars,Haris Rauf
+info,player,Lahore Qalandars,Asif Afridi
+info,player,Islamabad United,Sahibzada Farhan
+info,player,Islamabad United,AGS Gous
+info,player,Islamabad United,Agha Salman
+info,player,Islamabad United,Azam Khan
+info,player,Islamabad United,Haider Ali
+info,player,Islamabad United,Shadab Khan
+info,player,Islamabad United,JO Holder
+info,player,Islamabad United,Imad Wasim
+info,player,Islamabad United,BJ Dwarshuis
+info,player,Islamabad United,Naseem Shah
+info,player,Islamabad United,Hunain Shah
+info,registry,people,AGS Gous,d1305df0
+info,registry,people,Abdullah Shafique,fc2fffb5
+info,registry,people,Agha Salman,89c16049
+info,registry,people,Asif Afridi,9489623e
+info,registry,people,Asif Ali,0a4736eb
+info,registry,people,Asif Yaqoob,6b35790c
+info,registry,people,Azam Khan,ee8f1a6d
+info,registry,people,BJ Dwarshuis,e1b9f3a9
+info,registry,people,DJ Mitchell,eade4650
+info,registry,people,Faisal Afridi,ed0bc503
+info,registry,people,Fakhar Zaman,1777c020
+info,registry,people,Haider Ali,c13e34f4
+info,registry,people,Haris Rauf,24bb1c2f
+info,registry,people,Hunain Shah,3b8679bf
+info,registry,people,Imad Wasim,9cb8d7a6
+info,registry,people,JO Holder,0f721006
+info,registry,people,Mohammad Nawaz,3086f7a4
+info,registry,people,Muhammad Javed,bde2d0ea
+info,registry,people,Muhammad Naeem,e35b7b91
+info,registry,people,Naseem Shah,9c9af282
+info,registry,people,PR Reiffel,c9354f29
+info,registry,people,Rishad Hossain,5935d694
+info,registry,people,SW Billings,c16d4035
+info,registry,people,Sahibzada Farhan,1aba45cd
+info,registry,people,Salman Mirza,7ab1eab7
+info,registry,people,Shadab Khan,9de62878
+info,registry,people,Shaheen Shah Afridi,45a7e761
+info,registry,people,Sikandar Raza,26d041c4
+info,registry,people,TK Curran,e86754b2
+info,registry,people,Tariq Rasheed,1008518c

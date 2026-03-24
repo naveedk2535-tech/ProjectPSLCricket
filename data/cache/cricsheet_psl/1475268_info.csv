@@ -1,0 +1,70 @@
+version,2.2.0
+info,balls_per_over,6
+info,team,Quetta Gladiators
+info,team,Islamabad United
+info,gender,male
+info,season,2025
+info,date,2025/05/21
+info,event,Pakistan Super League
+info,venue,"Gaddafi Stadium, Lahore"
+info,city,Lahore
+info,toss_winner,Quetta Gladiators
+info,toss_decision,bat
+info,player_of_match,Faheem Ashraf
+info,umpire,Aleem Dar
+info,umpire,Asif Yaqoob
+info,reserve_umpire,Nasir Hussain
+info,tv_umpire,Faisal Afridi
+info,match_referee,Muhammad Javed
+info,winner,Quetta Gladiators
+info,winner_runs,30
+info,player,Quetta Gladiators,Saud Shakeel
+info,player,Quetta Gladiators,FH Allen
+info,player,Quetta Gladiators,RR Rossouw
+info,player,Quetta Gladiators,Hassan Nawaz
+info,player,Quetta Gladiators,WIA Fernando
+info,player,Quetta Gladiators,LD Chandimal
+info,player,Quetta Gladiators,Faheem Ashraf
+info,player,Quetta Gladiators,Mohammad Wasim
+info,player,Quetta Gladiators,Mohammad Amir
+info,player,Quetta Gladiators,Usman Tariq
+info,player,Quetta Gladiators,Abrar Ahmed
+info,player,Islamabad United,Sahibzada Farhan
+info,player,Islamabad United,AD Hales
+info,player,Islamabad United,HE van der Dussen
+info,player,Islamabad United,Agha Salman
+info,player,Islamabad United,Shadab Khan
+info,player,Islamabad United,JDS Neesham
+info,player,Islamabad United,Imad Wasim
+info,player,Islamabad United,BJ Dwarshuis
+info,player,Islamabad United,Naseem Shah
+info,player,Islamabad United,Ghazi Ghori
+info,player,Islamabad United,Salman Irshad
+info,registry,people,AD Hales,92aeac25
+info,registry,people,Abrar Ahmed,abb7c76c
+info,registry,people,Agha Salman,89c16049
+info,registry,people,Aleem Dar,f02778d1
+info,registry,people,Asif Yaqoob,6b35790c
+info,registry,people,BJ Dwarshuis,e1b9f3a9
+info,registry,people,FH Allen,bf74b130
+info,registry,people,Faheem Ashraf,bd4ea627
+info,registry,people,Faisal Afridi,ed0bc503
+info,registry,people,Ghazi Ghori,28b61a48
+info,registry,people,HE van der Dussen,9948e262
+info,registry,people,Hassan Nawaz,26a8b2fe
+info,registry,people,Imad Wasim,9cb8d7a6
+info,registry,people,JDS Neesham,9219eff0
+info,registry,people,Khawaja Nafay,3cf54e77
+info,registry,people,LD Chandimal,8dd02a98
+info,registry,people,Mohammad Amir,e174dadd
+info,registry,people,Mohammad Wasim,9e9af5f2
+info,registry,people,Muhammad Javed,bde2d0ea
+info,registry,people,Naseem Shah,9c9af282
+info,registry,people,Nasir Hussain,5b2fe85b
+info,registry,people,RR Rossouw,cad00a4d
+info,registry,people,Sahibzada Farhan,1aba45cd
+info,registry,people,Salman Irshad,30afc92b
+info,registry,people,Saud Shakeel,d07c1b2f
+info,registry,people,Shadab Khan,9de62878
+info,registry,people,Usman Tariq,e94d1dcd
+info,registry,people,WIA Fernando,9550470d

@@ -1,0 +1,70 @@
+version,2.2.0
+info,balls_per_over,6
+info,team,Quetta Gladiators
+info,team,Karachi Kings
+info,gender,male
+info,season,2025
+info,date,2025/04/25
+info,event,Pakistan Super League
+info,match_number,15
+info,venue,"Gaddafi Stadium, Lahore"
+info,city,Lahore
+info,toss_winner,Karachi Kings
+info,toss_decision,field
+info,player_of_match,Abrar Ahmed
+info,umpire,Nasir Hussain
+info,umpire,PR Reiffel
+info,reserve_umpire,Tariq Rasheed
+info,tv_umpire,Faisal Afridi
+info,match_referee,RS Madugalle
+info,winner,Quetta Gladiators
+info,winner_runs,5
+info,player,Quetta Gladiators,Saud Shakeel
+info,player,Quetta Gladiators,FH Allen
+info,player,Quetta Gladiators,RR Rossouw
+info,player,Quetta Gladiators,BKG Mendis
+info,player,Quetta Gladiators,MS Chapman
+info,player,Quetta Gladiators,Hassan Nawaz
+info,player,Quetta Gladiators,Faheem Ashraf
+info,player,Quetta Gladiators,Mohammad Wasim
+info,player,Quetta Gladiators,Mohammad Amir
+info,player,Quetta Gladiators,Khurram Shahzad
+info,player,Quetta Gladiators,Abrar Ahmed
+info,player,Karachi Kings,DA Warner
+info,player,Karachi Kings,TL Seifert
+info,player,Karachi Kings,JM Vince
+info,player,Karachi Kings,Shan Masood
+info,player,Karachi Kings,Omair Yousuf
+info,player,Karachi Kings,Khushdil Shah
+info,player,Karachi Kings,Mohammad Nabi
+info,player,Karachi Kings,Abbas Afridi
+info,player,Karachi Kings,Hasan Ali
+info,player,Karachi Kings,Mir Hamza
+info,player,Karachi Kings,Fawad Ali
+info,registry,people,Abbas Afridi,2cec2a92
+info,registry,people,Abrar Ahmed,abb7c76c
+info,registry,people,BKG Mendis,5d1e7582
+info,registry,people,DA Warner,dcce6f09
+info,registry,people,FH Allen,bf74b130
+info,registry,people,Faheem Ashraf,bd4ea627
+info,registry,people,Faisal Afridi,ed0bc503
+info,registry,people,Fawad Ali,b3034790
+info,registry,people,Hasan Ali,2911de16
+info,registry,people,Hassan Nawaz,26a8b2fe
+info,registry,people,JM Vince,a15618fe
+info,registry,people,Khurram Shahzad,27c5715d
+info,registry,people,Khushdil Shah,fce581b5
+info,registry,people,MS Chapman,7fa12533
+info,registry,people,Mir Hamza,cb1a782a
+info,registry,people,Mohammad Amir,e174dadd
+info,registry,people,Mohammad Nabi,62af8546
+info,registry,people,Mohammad Wasim,9e9af5f2
+info,registry,people,Nasir Hussain,5b2fe85b
+info,registry,people,Omair Yousuf,f8e3c0f8
+info,registry,people,PR Reiffel,c9354f29
+info,registry,people,RR Rossouw,cad00a4d
+info,registry,people,RS Madugalle,766b5798
+info,registry,people,Saud Shakeel,d07c1b2f
+info,registry,people,Shan Masood,6843a783
+info,registry,people,TL Seifert,4663bd23
+info,registry,people,Tariq Rasheed,1008518c

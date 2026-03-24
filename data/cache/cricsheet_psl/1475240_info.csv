@@ -1,0 +1,70 @@
+version,2.2.0
+info,balls_per_over,6
+info,team,Multan Sultans
+info,team,Karachi Kings
+info,gender,male
+info,season,2025
+info,date,2025/04/12
+info,event,Pakistan Super League
+info,match_number,3
+info,venue,"National Stadium, Karachi"
+info,city,Karachi
+info,toss_winner,Karachi Kings
+info,toss_decision,field
+info,player_of_match,JM Vince
+info,umpire,AG Wharf
+info,umpire,Asif Yaqoob
+info,reserve_umpire,Abdul Muqeet
+info,tv_umpire,Tariq Rasheed
+info,match_referee,Iftikhar Ahmed (2)
+info,winner,Karachi Kings
+info,winner_wickets,4
+info,player,Multan Sultans,Mohammad Rizwan
+info,player,Multan Sultans,SD Hope
+info,player,Multan Sultans,Usman Khan
+info,player,Multan Sultans,Kamran Ghulam
+info,player,Multan Sultans,MG Bracewell
+info,player,Multan Sultans,Iftikhar Ahmed
+info,player,Multan Sultans,CJ Jordan
+info,player,Multan Sultans,DJ Willey
+info,player,Multan Sultans,Shahid Aziz
+info,player,Multan Sultans,Usama Mir
+info,player,Multan Sultans,Akif Javed
+info,player,Karachi Kings,TL Seifert
+info,player,Karachi Kings,DA Warner
+info,player,Karachi Kings,JM Vince
+info,player,Karachi Kings,Shan Masood
+info,player,Karachi Kings,Arafat Minhas
+info,player,Karachi Kings,Khushdil Shah
+info,player,Karachi Kings,Irfan Khan
+info,player,Karachi Kings,Abbas Afridi
+info,player,Karachi Kings,Hasan Ali
+info,player,Karachi Kings,AF Milne
+info,player,Karachi Kings,Fawad Ali
+info,registry,people,AF Milne,350bb1b1
+info,registry,people,AG Wharf,2e0fcc58
+info,registry,people,Abbas Afridi,2cec2a92
+info,registry,people,Abdul Muqeet,e1ac7789
+info,registry,people,Akif Javed,99d7d5b7
+info,registry,people,Arafat Minhas,f2e8b37c
+info,registry,people,Asif Yaqoob,6b35790c
+info,registry,people,CJ Jordan,ffe699c0
+info,registry,people,DA Warner,dcce6f09
+info,registry,people,DJ Willey,7f048519
+info,registry,people,Fawad Ali,b3034790
+info,registry,people,Hasan Ali,2911de16
+info,registry,people,Iftikhar Ahmed,29e253dd
+info,registry,people,Iftikhar Ahmed (2),973d561e
+info,registry,people,Irfan Khan,ee95065d
+info,registry,people,JM Vince,a15618fe
+info,registry,people,Kamran Ghulam,35f4cf7e
+info,registry,people,Khushdil Shah,fce581b5
+info,registry,people,MG Bracewell,e38bce7a
+info,registry,people,Mohammad Rizwan,2f26ac1a
+info,registry,people,SD Hope,1fc6ef83
+info,registry,people,Shahid Aziz,8d964ae6
+info,registry,people,Shan Masood,6843a783
+info,registry,people,TL Seifert,4663bd23
+info,registry,people,Tariq Rasheed,1008518c
+info,registry,people,Usama Mir,6dd8b88c
+info,registry,people,Usman Khan,bafb9238

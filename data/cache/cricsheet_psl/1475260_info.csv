@@ -1,0 +1,70 @@
+version,2.2.0
+info,balls_per_over,6
+info,team,Islamabad United
+info,team,Quetta Gladiators
+info,gender,male
+info,season,2025
+info,date,2025/05/03
+info,event,Pakistan Super League
+info,match_number,23
+info,venue,"Gaddafi Stadium, Lahore"
+info,city,Lahore
+info,toss_winner,Quetta Gladiators
+info,toss_decision,field
+info,player_of_match,Hassan Nawaz
+info,umpire,AG Wharf
+info,umpire,Rashid Riaz
+info,reserve_umpire,Abdul Muqeet
+info,tv_umpire,Faisal Afridi
+info,match_referee,RS Mahanama
+info,winner,Quetta Gladiators
+info,winner_wickets,2
+info,player,Islamabad United,Sahibzada Farhan
+info,player,Islamabad United,KR Mayers
+info,player,Islamabad United,C Munro
+info,player,Islamabad United,Agha Salman
+info,player,Islamabad United,AGS Gous
+info,player,Islamabad United,Mohammad Nawaz
+info,player,Islamabad United,Muhammad Shahzad
+info,player,Islamabad United,Haider Ali
+info,player,Islamabad United,JO Holder
+info,player,Islamabad United,Naseem Shah
+info,player,Islamabad United,Salman Irshad
+info,player,Quetta Gladiators,Saud Shakeel
+info,player,Quetta Gladiators,FH Allen
+info,player,Quetta Gladiators,RR Rossouw
+info,player,Quetta Gladiators,Hassan Nawaz
+info,player,Quetta Gladiators,MS Chapman
+info,player,Quetta Gladiators,Haseebullah Khan
+info,player,Quetta Gladiators,Faheem Ashraf
+info,player,Quetta Gladiators,KA Jamieson
+info,player,Quetta Gladiators,Mohammad Wasim
+info,player,Quetta Gladiators,Abrar Ahmed
+info,player,Quetta Gladiators,Khurram Shahzad
+info,registry,people,AG Wharf,2e0fcc58
+info,registry,people,AGS Gous,d1305df0
+info,registry,people,Abdul Muqeet,e1ac7789
+info,registry,people,Abrar Ahmed,abb7c76c
+info,registry,people,Agha Salman,89c16049
+info,registry,people,C Munro,af2c687b
+info,registry,people,FH Allen,bf74b130
+info,registry,people,Faheem Ashraf,bd4ea627
+info,registry,people,Faisal Afridi,ed0bc503
+info,registry,people,Haider Ali,c13e34f4
+info,registry,people,Haseebullah Khan,5691931a
+info,registry,people,Hassan Nawaz,26a8b2fe
+info,registry,people,JO Holder,0f721006
+info,registry,people,KA Jamieson,68c56d09
+info,registry,people,KR Mayers,73c18486
+info,registry,people,Khurram Shahzad,27c5715d
+info,registry,people,MS Chapman,7fa12533
+info,registry,people,Mohammad Nawaz,3086f7a4
+info,registry,people,Mohammad Wasim,9e9af5f2
+info,registry,people,Muhammad Shahzad,f59b2121
+info,registry,people,Naseem Shah,9c9af282
+info,registry,people,RR Rossouw,cad00a4d
+info,registry,people,RS Mahanama,57910393
+info,registry,people,Rashid Riaz,fb82725e
+info,registry,people,Sahibzada Farhan,1aba45cd
+info,registry,people,Salman Irshad,30afc92b
+info,registry,people,Saud Shakeel,d07c1b2f

@@ -16,6 +16,14 @@
 {% endblock %}
 
 {% block content %}
+{% set season = season|default({'matches_played': 0, 'matches_remaining': 44, 'current_leader': 'TBD', 'total_matches': 44}) %}
+{% set stats = stats|default({'total_matches': 0, 'predictions_made': 0, 'value_bets': 0, 'model_accuracy': 0}) %}
+{% set upcoming = upcoming|default([]) %}
+{% set predictions = predictions|default({}) %}
+{% set live_matches = live_matches|default([]) %}
+{% set recent_results = recent_results|default([]) %}
+{% set value_bets = value_bets|default([]) %}
+{% set api_usage = api_usage|default({}) %}
 <div class="space-y-6">
 
     <!-- Season overview bar -->
@@ -213,15 +221,17 @@
                     API Usage
                 </h3>
                 <div class="space-y-3">
-                    {% for api in api_usage|default([]) %}
+                    {% for api_name, api in api_usage.items() %}
                     <div>
                         <div class="flex items-center justify-between text-xs mb-1">
-                            <span class="text-gray-400">{{ api.name }}</span>
-                            <span class="text-gray-500">{{ api.used }}/{{ api.limit }}</span>
+                            <span class="text-gray-400">{{ api_name }}</span>
+                            <span class="text-gray-500">{{ api.used|default(0) }}/{{ api.limit|default(1) }}</span>
                         </div>
                         <div class="h-1.5 bg-gray-700 rounded-full overflow-hidden">
-                            <div class="h-full rounded-full {% if api.used / api.limit > 0.9 %}bg-red-500{% elif api.used / api.limit > 0.7 %}bg-amber-500{% else %}bg-emerald-500{% endif %}"
-                                 style="width: {{ (api.used / api.limit * 100) if api.limit > 0 else 0 }}%"></div>
+                            {% set used = api.used|default(0) %}
+                            {% set limit = api.limit|default(1) %}
+                            <div class="h-full rounded-full {% if used / limit > 0.9 %}bg-red-500{% elif used / limit > 0.7 %}bg-amber-500{% else %}bg-emerald-500{% endif %}"
+                                 style="width: {{ (used / limit * 100) if limit > 0 else 0 }}%"></div>
                         </div>
                     </div>
                     {% else %}

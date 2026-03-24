@@ -1,229 +1,157 @@
 {% extends "base.html" %}
-{% block title %}Portfolio - PSL Analytics{% endblock %}
+
+{% block title %}Betting Portfolio{% endblock %}
+
 {% block page_title %}Betting Portfolio{% endblock %}
+{% block breadcrumb %}
+<span class="text-gray-600">/</span>
+<span class="text-gray-400">Portfolio</span>
+{% endblock %}
 
 {% block content %}
-<div class="space-y-6" x-data="{ filter: 'all', showAddBet: false }">
+<div class="space-y-6" x-data="{ activeTab: 'all', showBetForm: false }">
 
     <!-- Portfolio Summary -->
-    {% for p in portfolios %}
-    {% if p.status == 'active' %}
-    <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-white">{{ p.name }}</h3>
-            <span class="px-2 py-1 bg-green-900/50 text-green-400 text-xs rounded-full">Active</span>
-        </div>
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div class="bg-gray-800 rounded-lg p-4 text-center">
-                <p class="text-xs text-gray-500 mb-1">Starting Bankroll</p>
-                <p class="text-xl font-bold text-white">${{ '%.0f'|format(p.starting_bankroll) }}</p>
+    <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-6">
+            <div class="text-center sm:text-left">
+                <p class="text-sm text-gray-400 mb-1">Current Bankroll</p>
+                <p class="text-3xl font-extrabold text-white">{{ "%.0f"|format(portfolio.bankroll|default(0)) }}</p>
             </div>
-            <div class="bg-gray-800 rounded-lg p-4 text-center">
-                <p class="text-xs text-gray-500 mb-1">Current Bankroll</p>
-                <p class="text-xl font-bold {% if p.current_bankroll >= p.starting_bankroll %}text-green-400{% else %}text-red-400{% endif %}">
-                    ${{ '%.0f'|format(p.current_bankroll) }}
+            <div class="text-center sm:text-left">
+                <p class="text-sm text-gray-400 mb-1">Starting Bankroll</p>
+                <p class="text-3xl font-extrabold text-gray-400">{{ "%.0f"|format(portfolio.starting_bankroll|default(0)) }}</p>
+            </div>
+            <div class="text-center sm:text-left">
+                <p class="text-sm text-gray-400 mb-1">P&amp;L</p>
+                <p class="text-3xl font-extrabold {% if portfolio.pnl|default(0) > 0 %}text-emerald-400{% elif portfolio.pnl|default(0) < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
+                    {{ "%+.0f"|format(portfolio.pnl|default(0)) }}
                 </p>
             </div>
-            <div class="bg-gray-800 rounded-lg p-4 text-center">
-                <p class="text-xs text-gray-500 mb-1">P&L</p>
-                {% set pnl = p.current_bankroll - p.starting_bankroll %}
-                <p class="text-xl font-bold {% if pnl >= 0 %}text-green-400{% else %}text-red-400{% endif %}">
-                    {{ '%+.0f'|format(pnl) }}
-                </p>
-            </div>
-            <div class="bg-gray-800 rounded-lg p-4 text-center">
-                <p class="text-xs text-gray-500 mb-1">ROI</p>
-                {% set roi = ((p.current_bankroll - p.starting_bankroll) / p.starting_bankroll * 100) if p.starting_bankroll > 0 else 0 %}
-                <p class="text-xl font-bold {% if roi >= 0 %}text-green-400{% else %}text-red-400{% endif %}">
-                    {{ '%+.1f'|format(roi) }}%
+            <div class="text-center sm:text-left">
+                <p class="text-sm text-gray-400 mb-1">ROI</p>
+                <p class="text-3xl font-extrabold {% if portfolio.roi|default(0) > 0 %}text-emerald-400{% elif portfolio.roi|default(0) < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
+                    {{ "%+.1f"|format(portfolio.roi|default(0)) }}%
                 </p>
             </div>
         </div>
     </div>
-    {% endif %}
-    {% endfor %}
 
-    <!-- P&L Chart -->
-    <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
-        <h3 class="text-lg font-semibold text-white mb-4">P&L Over Time</h3>
-        <div class="h-64">
-            <canvas id="pnlChart"></canvas>
-        </div>
-    </div>
+    <!-- Place Bet Button + Form -->
+    <div>
+        <button @click="showBetForm = !showBetForm"
+                class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 px-5 rounded-xl text-sm transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Place Bet
+        </button>
 
-    <!-- Add Bet -->
-    <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-white">Record a Bet</h3>
-            <button @click="showAddBet = !showAddBet" class="text-sm text-green-400 hover:text-green-300 transition-colors" x-text="showAddBet ? 'Cancel' : 'New Bet'"></button>
-        </div>
-
-        <div x-show="showAddBet" x-cloak x-transition>
-            <form action="{{ url_for('api_add_bet') }}" method="POST" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div x-show="showBetForm" x-transition class="mt-4 bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+            <h3 class="text-sm font-bold text-white mb-4">New Bet</h3>
+            <form method="POST" action="{{ url_for('place_bet') }}" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div>
-                    <label class="block text-xs text-gray-500 mb-1">Portfolio</label>
-                    <select name="portfolio_id" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500">
-                        {% for p in portfolios %}
-                        {% if p.status == 'active' %}
-                        <option value="{{ p.id }}">{{ p.name }}</option>
-                        {% endif %}
+                    <label class="block text-xs text-gray-400 mb-1">Match</label>
+                    <select name="match_id" required class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500">
+                        <option value="">Select match...</option>
+                        {% for match in upcoming_matches|default([]) %}
+                        <option value="{{ match.id }}">{{ match.team_a }} vs {{ match.team_b }} ({{ match.date }})</option>
                         {% endfor %}
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs text-gray-500 mb-1">Match</label>
-                    <select name="match_desc" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500">
-                        {% for f in fixtures %}
-                        <option value="{{ f.team_a }} vs {{ f.team_b }}">{{ f.team_a }} vs {{ f.team_b }} ({{ f.match_date }})</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-500 mb-1">Bet Type</label>
-                    <select name="bet_type" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500">
+                    <label class="block text-xs text-gray-400 mb-1">Bet Type</label>
+                    <select name="bet_type" required class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500">
                         <option value="match_winner">Match Winner</option>
-                        <option value="over_under">Over/Under Runs</option>
+                        <option value="over_under">Over/Under</option>
+                        <option value="top_batsman">Top Batsman</option>
                         <option value="prop">Prop Bet</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs text-gray-500 mb-1">Selection</label>
-                    <input type="text" name="selection" required class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500" placeholder="e.g. Lahore Qalandars">
+                    <label class="block text-xs text-gray-400 mb-1">Selection</label>
+                    <input type="text" name="selection" required placeholder="e.g., Lahore Qalandars"
+                           class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500">
                 </div>
                 <div>
-                    <label class="block text-xs text-gray-500 mb-1">Stake ($)</label>
-                    <input type="number" name="stake" step="0.01" required class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500" placeholder="100">
+                    <label class="block text-xs text-gray-400 mb-1">Stake</label>
+                    <input type="number" name="stake" required step="0.01" min="0" placeholder="100"
+                           class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500">
                 </div>
                 <div>
-                    <label class="block text-xs text-gray-500 mb-1">Odds (Decimal)</label>
-                    <input type="number" name="odds" step="0.01" required class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-green-500" placeholder="1.85">
-                </div>
-                <div class="sm:col-span-2 lg:col-span-3">
-                    <button type="submit" class="w-full py-2.5 bg-green-600 hover:bg-green-500 text-white font-medium rounded-lg transition-colors">
-                        Record Bet
-                    </button>
+                    <label class="block text-xs text-gray-400 mb-1">Odds</label>
+                    <div class="flex gap-2">
+                        <input type="number" name="odds" required step="0.01" min="1" placeholder="1.85"
+                               class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500">
+                        <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors whitespace-nowrap">
+                            Place
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Bet History -->
-    <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-white">Bet History</h3>
-            <div class="flex bg-gray-800 rounded-lg p-0.5">
-                <button @click="filter = 'all'" :class="filter === 'all' ? 'bg-gray-700 text-white' : 'text-gray-500'" class="px-3 py-1 text-xs font-medium rounded-md transition-colors">All</button>
-                <button @click="filter = 'pending'" :class="filter === 'pending' ? 'bg-gray-700 text-white' : 'text-gray-500'" class="px-3 py-1 text-xs font-medium rounded-md transition-colors">Pending</button>
-                <button @click="filter = 'won'" :class="filter === 'won' ? 'bg-gray-700 text-white' : 'text-gray-500'" class="px-3 py-1 text-xs font-medium rounded-md transition-colors">Won</button>
-                <button @click="filter = 'lost'" :class="filter === 'lost' ? 'bg-gray-700 text-white' : 'text-gray-500'" class="px-3 py-1 text-xs font-medium rounded-md transition-colors">Lost</button>
-            </div>
-        </div>
+    <!-- Filter Tabs -->
+    <div class="flex items-center gap-1 bg-gray-800/50 border border-gray-700 rounded-xl p-1 w-fit">
+        <button @click="activeTab = 'all'" :class="activeTab === 'all' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'"
+                class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">All</button>
+        <button @click="activeTab = 'pending'" :class="activeTab === 'pending' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'"
+                class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">Pending</button>
+        <button @click="activeTab = 'won'" :class="activeTab === 'won' ? 'bg-emerald-500/20 text-emerald-400' : 'text-gray-400 hover:text-white'"
+                class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">Won</button>
+        <button @click="activeTab = 'lost'" :class="activeTab === 'lost' ? 'bg-red-500/20 text-red-400' : 'text-gray-400 hover:text-white'"
+                class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">Lost</button>
+    </div>
 
+    <!-- Bet History -->
+    <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+        <h2 class="text-lg font-bold text-white mb-4">Bet History</h2>
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
-                    <tr class="text-xs text-gray-500 border-b border-gray-800 uppercase tracking-wider">
-                        <th class="py-2 text-left">Date</th>
-                        <th class="py-2 text-left">Match</th>
-                        <th class="py-2 text-center">Type</th>
-                        <th class="py-2 text-left">Selection</th>
-                        <th class="py-2 text-right">Stake</th>
-                        <th class="py-2 text-right">Odds</th>
-                        <th class="py-2 text-center">Status</th>
-                        <th class="py-2 text-right">P&L</th>
-                        <th class="py-2 text-center">Actions</th>
+                    <tr class="text-left text-gray-500 border-b border-gray-700">
+                        <th class="pb-3 font-medium">Date</th>
+                        <th class="pb-3 font-medium">Match</th>
+                        <th class="pb-3 font-medium">Type</th>
+                        <th class="pb-3 font-medium">Selection</th>
+                        <th class="pb-3 font-medium text-right">Stake</th>
+                        <th class="pb-3 font-medium text-right">Odds</th>
+                        <th class="pb-3 font-medium text-center">Status</th>
+                        <th class="pb-3 font-medium text-right">P&amp;L</th>
                     </tr>
                 </thead>
-                <tbody>
-                    {% for b in bets %}
-                    <tr class="border-b border-gray-800/50 hover:bg-gray-800/50 transition-colors"
-                        x-show="filter === 'all' || filter === '{{ b.status }}'">
-                        <td class="py-2 text-gray-400 text-xs">{{ b.placed_at[:10] if b.placed_at else '-' }}</td>
-                        <td class="py-2 text-white">{{ b.match_desc or '-' }}</td>
-                        <td class="py-2 text-center text-gray-400 text-xs">{{ b.bet_type }}</td>
-                        <td class="py-2 text-gray-300">{{ b.selection }}</td>
-                        <td class="py-2 text-right text-white">${{ '%.0f'|format(b.stake) }}</td>
-                        <td class="py-2 text-right text-gray-300">{{ b.odds }}</td>
-                        <td class="py-2 text-center">
-                            {% if b.status == 'pending' %}
-                            <span class="px-2 py-0.5 bg-amber-900/50 text-amber-400 text-xs rounded-full">Pending</span>
-                            {% elif b.status == 'won' %}
-                            <span class="px-2 py-0.5 bg-green-900/50 text-green-400 text-xs rounded-full">Won</span>
-                            {% else %}
-                            <span class="px-2 py-0.5 bg-red-900/50 text-red-400 text-xs rounded-full">Lost</span>
-                            {% endif %}
+                <tbody class="divide-y divide-gray-800">
+                    {% for bet in bets|default([]) %}
+                    <tr class="hover:bg-gray-800/50"
+                        x-show="activeTab === 'all' || activeTab === '{{ bet.status|default('pending') }}'">
+                        <td class="py-3 text-gray-500 text-xs">{{ bet.date }}</td>
+                        <td class="py-3 text-white font-medium">{{ bet.match }}</td>
+                        <td class="py-3 text-gray-400">{{ bet.bet_type|default('')|replace('_', ' ')|title }}</td>
+                        <td class="py-3 text-gray-300">{{ bet.selection }}</td>
+                        <td class="py-3 text-right text-gray-300 font-mono">{{ "%.0f"|format(bet.stake|default(0)) }}</td>
+                        <td class="py-3 text-right text-gray-300 font-mono">{{ "%.2f"|format(bet.odds|default(0)) }}</td>
+                        <td class="py-3 text-center">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                                {% if bet.status == 'won' %}bg-emerald-500/10 text-emerald-400
+                                {% elif bet.status == 'lost' %}bg-red-500/10 text-red-400
+                                {% elif bet.status == 'void' %}bg-gray-700 text-gray-400
+                                {% else %}bg-amber-500/10 text-amber-400{% endif %}">
+                                {{ bet.status|default('pending')|capitalize }}
+                            </span>
                         </td>
-                        <td class="py-2 text-right {% if b.pnl > 0 %}text-green-400{% elif b.pnl < 0 %}text-red-400{% else %}text-gray-500{% endif %} font-medium">
-                            {{ '%+.0f'|format(b.pnl) if b.pnl else '-' }}
-                        </td>
-                        <td class="py-2 text-center">
-                            {% if b.status == 'pending' %}
-                            <div class="flex items-center justify-center gap-1">
-                                <form action="{{ url_for('api_settle_bet', bet_id=b.id) }}" method="POST" class="inline">
-                                    <input type="hidden" name="result" value="won">
-                                    <button type="submit" class="px-2 py-1 bg-green-900/50 hover:bg-green-900/70 text-green-400 text-xs rounded transition-colors" title="Mark as Won">W</button>
-                                </form>
-                                <form action="{{ url_for('api_settle_bet', bet_id=b.id) }}" method="POST" class="inline">
-                                    <input type="hidden" name="result" value="lost">
-                                    <button type="submit" class="px-2 py-1 bg-red-900/50 hover:bg-red-900/70 text-red-400 text-xs rounded transition-colors" title="Mark as Lost">L</button>
-                                </form>
-                            </div>
-                            {% else %}
-                            <span class="text-gray-600 text-xs">Settled</span>
-                            {% endif %}
+                        <td class="py-3 text-right font-mono font-semibold
+                            {% if bet.pnl|default(0) > 0 %}text-emerald-400{% elif bet.pnl|default(0) < 0 %}text-red-400{% else %}text-gray-500{% endif %}">
+                            {% if bet.pnl is defined and bet.pnl is not none %}{{ "%+.0f"|format(bet.pnl) }}{% else %}-{% endif %}
                         </td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="9" class="py-8 text-center text-gray-500">No bets recorded yet. Add your first bet above.</td>
+                        <td colspan="8" class="py-8 text-center text-gray-500">No bets placed yet</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
+
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const ctx = document.getElementById('pnlChart').getContext('2d');
-    // Simulated P&L data
-    const labels = [];
-    const data = [];
-    let cumPnl = 0;
-    for (let i = 1; i <= 16; i++) {
-        labels.push('Match ' + i);
-        cumPnl += (Math.random() - 0.45) * 200;
-        data.push(Math.round(cumPnl));
-    }
-
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Cumulative P&L ($)',
-                data: data,
-                borderColor: data[data.length-1] >= 0 ? '#00A651' : '#EF4444',
-                backgroundColor: data[data.length-1] >= 0 ? '#00A65120' : '#EF444420',
-                fill: true,
-                tension: 0.3,
-                pointRadius: 3,
-                pointBackgroundColor: data[data.length-1] >= 0 ? '#00A651' : '#EF4444'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { labels: { color: '#9CA3AF' } } },
-            scales: {
-                y: { grid: { color: '#374151' }, ticks: { color: '#9CA3AF', callback: v => '$' + v } },
-                x: { grid: { display: false }, ticks: { color: '#9CA3AF' } }
-            }
-        }
-    });
-});
-</script>
 {% endblock %}

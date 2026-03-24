@@ -4,9 +4,12 @@ Configuration — All settings, API keys, rate limits, teams, venues
 """
 
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # .env loaded by WSGI or manually
 
 # ─── API Keys ───────────────────────────────────────────────────────────────
 CRICKET_API_KEY = os.environ.get("CRICKET_API_KEY", "")

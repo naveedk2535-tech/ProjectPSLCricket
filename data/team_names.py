@@ -181,6 +181,10 @@ def get_team_color(name):
     """Get team color for UI display."""
     canonical = standardise(name)
     abbrev = ABBREVIATIONS.get(canonical)
-    if abbrev and abbrev in __import__("config").TEAMS:
-        return __import__("config").TEAMS[abbrev]["color"]
+    try:
+        import config as _cfg
+        if abbrev and abbrev in _cfg.TEAMS:
+            return _cfg.TEAMS[abbrev]["color"]
+    except Exception:
+        pass
     return "#6B7280"

@@ -200,7 +200,7 @@ def dashboard():
             predictions[fid] = pred
 
     live_matches = db.fetch_all(
-        "SELECT * FROM live_matches WHERE status = 'LIVE' ORDER BY updated_at DESC"
+        "SELECT * FROM fixtures WHERE status = 'LIVE' ORDER BY match_date DESC"
     )
 
     recent_results = db.fetch_all(
@@ -213,6 +213,38 @@ def dashboard():
 
     api_usage = rate_limiter.get_usage_summary()
 
+    # Season stats
+    total_played = db.fetch_one(
+        "SELECT COUNT(*) as cnt FROM fixtures WHERE status = 'COMPLETED' AND season = ?",
+        [config.CURRENT_SEASON]
+    )
+    total_fixtures = db.fetch_one(
+        "SELECT COUNT(*) as cnt FROM fixtures WHERE season = ?",
+        [config.CURRENT_SEASON]
+    )
+    season = {
+        "matches_played": total_played["cnt"] if total_played else 0,
+        "matches_remaining": (total_fixtures["cnt"] if total_fixtures else 44) - (total_played["cnt"] if total_played else 0),
+        "total_matches": total_fixtures["cnt"] if total_fixtures else 44,
+    }
+
+    # Stats for cards
+    total_matches_all = db.fetch_one("SELECT COUNT(*) as cnt FROM matches")
+    pred_count = db.fetch_one("SELECT COUNT(*) as cnt FROM predictions")
+    vb_count = db.fetch_one("SELECT COUNT(*) as cnt FROM value_bets WHERE status = 'pending'")
+    tracker_settled = db.fetch_all("SELECT top_pick_correct FROM model_tracker WHERE status = 'settled'")
+    accuracy = 0.0
+    if tracker_settled:
+        correct = sum(1 for t in tracker_settled if t["top_pick_correct"] == 1)
+        accuracy = (correct / len(tracker_settled) * 100) if tracker_settled else 0
+
+    stats = {
+        "total_matches": total_matches_all["cnt"] if total_matches_all else 0,
+        "predictions_made": pred_count["cnt"] if pred_count else 0,
+        "value_bets": vb_count["cnt"] if vb_count else 0,
+        "model_accuracy": accuracy,
+    }
+
     return render_template(
         "dashboard.html",
         upcoming=upcoming,
@@ -221,6 +253,9 @@ def dashboard():
         recent_results=recent_results,
         value_bets=value_bets,
         api_usage=api_usage,
+        season=season,
+        stats=stats,
+        teams=config.TEAMS,
         now=datetime.utcnow(),
     )
 

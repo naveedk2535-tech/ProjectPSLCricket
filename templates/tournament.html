@@ -1,235 +1,265 @@
 {% extends "base.html" %}
-{% block title %}Tournament - PSL 2026{% endblock %}
+
+{% block title %}Tournament — PSL 2026{% endblock %}
+
 {% block page_title %}Tournament{% endblock %}
+{% block breadcrumb %}
+<span class="text-gray-600">/</span>
+<span class="text-gray-400">Tournament</span>
+{% endblock %}
+
+{% block page_actions %}
+<span class="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-full text-xs font-semibold text-amber-400">
+    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+    PSL 2026
+</span>
+{% endblock %}
 
 {% block content %}
-<div class="space-y-6" x-data="{ view: 'list' }">
+<div class="space-y-6">
 
     <!-- Points Table -->
-    <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
-        <h3 class="text-lg font-semibold text-white mb-4">Points Table</h3>
+    <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+        <h2 class="text-lg font-bold text-white mb-4">Points Table</h2>
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
-                    <tr class="text-xs text-gray-500 border-b border-gray-800 uppercase tracking-wider">
-                        <th class="py-3 text-left pl-3">#</th>
-                        <th class="py-3 text-left">Team</th>
-                        <th class="py-3 text-center">P</th>
-                        <th class="py-3 text-center">W</th>
-                        <th class="py-3 text-center">L</th>
-                        <th class="py-3 text-center">NR</th>
-                        <th class="py-3 text-center">Pts</th>
-                        <th class="py-3 text-center">NRR</th>
-                        <th class="py-3 text-center">Group</th>
+                    <tr class="text-left text-gray-500 border-b border-gray-700">
+                        <th class="pb-3 font-medium w-10">#</th>
+                        <th class="pb-3 font-medium">Team</th>
+                        <th class="pb-3 font-medium text-center">P</th>
+                        <th class="pb-3 font-medium text-center">W</th>
+                        <th class="pb-3 font-medium text-center">L</th>
+                        <th class="pb-3 font-medium text-center">NR</th>
+                        <th class="pb-3 font-medium text-center">Pts</th>
+                        <th class="pb-3 font-medium text-right">NRR</th>
                     </tr>
                 </thead>
-                <tbody>
-                    {% for s in standings %}
-                    <tr class="border-b border-gray-800/50 {% if loop.index <= 4 %}bg-green-900/10{% endif %} hover:bg-gray-800/50 transition-colors">
-                        <td class="py-3 pl-3">
-                            {% if loop.index <= 4 %}
-                            <span class="w-6 h-6 rounded-full bg-green-900/50 flex items-center justify-center text-xs text-green-400 font-bold">{{ loop.index }}</span>
-                            {% else %}
-                            <span class="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center text-xs text-gray-500">{{ loop.index }}</span>
-                            {% endif %}
-                        </td>
+                <tbody class="divide-y divide-gray-800">
+                    {% for team in standings|default([]) %}
+                    <tr class="hover:bg-gray-800/50 {% if loop.index <= 4 %}border-l-2 border-l-emerald-500{% endif %}">
+                        <td class="py-3 text-gray-500 font-mono">{{ loop.index }}</td>
                         <td class="py-3">
                             <div class="flex items-center gap-2">
-                                <div class="w-3 h-3 rounded-full" style="background-color: {{ s.color }}"></div>
-                                <span class="text-white font-medium">{{ s.team }}</span>
+                                <span class="w-3 h-3 rounded-full" style="background-color: {{ team.color|default('#6B7280') }}"></span>
+                                <span class="font-semibold text-white">{{ team.name }}</span>
+                                {% if loop.index <= 4 %}
+                                <span class="text-xs text-emerald-400 font-medium ml-1">Q</span>
+                                {% endif %}
                             </div>
                         </td>
-                        <td class="py-3 text-center text-gray-300">{{ s.played }}</td>
-                        <td class="py-3 text-center text-green-400 font-medium">{{ s.won }}</td>
-                        <td class="py-3 text-center text-red-400">{{ s.lost }}</td>
-                        <td class="py-3 text-center text-gray-500">{{ s.nr }}</td>
-                        <td class="py-3 text-center text-white font-bold">{{ s.pts }}</td>
-                        <td class="py-3 text-center {% if s.nrr > 0 %}text-green-400{% elif s.nrr < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
-                            {{ '%+.3f'|format(s.nrr) }}
+                        <td class="py-3 text-center text-gray-300">{{ team.played|default(0) }}</td>
+                        <td class="py-3 text-center text-emerald-400 font-semibold">{{ team.won|default(0) }}</td>
+                        <td class="py-3 text-center text-red-400">{{ team.lost|default(0) }}</td>
+                        <td class="py-3 text-center text-gray-500">{{ team.no_result|default(0) }}</td>
+                        <td class="py-3 text-center text-white font-bold">{{ team.points|default(0) }}</td>
+                        <td class="py-3 text-right font-mono {% if team.nrr|default(0) > 0 %}text-emerald-400{% elif team.nrr|default(0) < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
+                            {{ "%+.3f"|format(team.nrr|default(0)) }}
                         </td>
-                        <td class="py-3 text-center">
-                            <span class="px-2 py-0.5 rounded-full text-xs {% if s.group == 'A' %}bg-blue-900/50 text-blue-400{% else %}bg-purple-900/50 text-purple-400{% endif %}">{{ s.group }}</span>
-                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="py-8 text-center text-gray-500">No standings data available</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
-        <p class="text-xs text-gray-600 mt-3">Top 4 teams (highlighted) qualify for playoffs</p>
+        {% if standings %}
+        <div class="mt-4 flex items-center gap-2 text-xs text-gray-500">
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span>Top 4 qualify for playoffs</span>
+        </div>
+        {% endif %}
     </div>
 
-    <!-- Group Standings -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- Group A -->
-        <div class="bg-gray-900 border border-blue-900/30 rounded-xl p-5">
-            <h3 class="text-sm font-semibold text-blue-400 uppercase tracking-wider mb-3">Group A</h3>
-            <div class="space-y-2">
-                {% for s in group_a %}
-                <div class="flex items-center justify-between p-3 bg-gray-800 rounded-lg">
-                    <div class="flex items-center gap-2">
-                        <span class="text-sm font-bold text-gray-500">{{ loop.index }}</span>
-                        <div class="w-2.5 h-2.5 rounded-full" style="background-color: {{ s.color }}"></div>
-                        <span class="text-sm text-white font-medium">{{ s.team }}</span>
-                    </div>
-                    <div class="flex items-center gap-4 text-xs">
-                        <span class="text-gray-400">{{ s.played }}P</span>
-                        <span class="text-green-400">{{ s.won }}W</span>
-                        <span class="text-white font-bold">{{ s.pts }} pts</span>
-                    </div>
-                </div>
-                {% endfor %}
+    <!-- Group Tables (if groups exist) -->
+    {% if group_a or group_b %}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {% if group_a %}
+        <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+            <h3 class="text-sm font-bold text-white mb-4">Group A</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-500 border-b border-gray-700">
+                            <th class="pb-2 font-medium">#</th>
+                            <th class="pb-2 font-medium">Team</th>
+                            <th class="pb-2 font-medium text-center">P</th>
+                            <th class="pb-2 font-medium text-center">W</th>
+                            <th class="pb-2 font-medium text-center">L</th>
+                            <th class="pb-2 font-medium text-center">Pts</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-800">
+                        {% for team in group_a %}
+                        <tr class="{% if loop.index <= 2 %}border-l-2 border-l-emerald-500{% endif %}">
+                            <td class="py-2 text-gray-500 font-mono">{{ loop.index }}</td>
+                            <td class="py-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-2.5 h-2.5 rounded-full" style="background-color: {{ team.color|default('#6B7280') }}"></span>
+                                    <span class="font-medium text-white">{{ team.name }}</span>
+                                </div>
+                            </td>
+                            <td class="py-2 text-center text-gray-300">{{ team.played|default(0) }}</td>
+                            <td class="py-2 text-center text-emerald-400">{{ team.won|default(0) }}</td>
+                            <td class="py-2 text-center text-red-400">{{ team.lost|default(0) }}</td>
+                            <td class="py-2 text-center text-white font-bold">{{ team.points|default(0) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
+        {% endif %}
 
-        <!-- Group B -->
-        <div class="bg-gray-900 border border-purple-900/30 rounded-xl p-5">
-            <h3 class="text-sm font-semibold text-purple-400 uppercase tracking-wider mb-3">Group B</h3>
-            <div class="space-y-2">
-                {% for s in group_b %}
-                <div class="flex items-center justify-between p-3 bg-gray-800 rounded-lg">
-                    <div class="flex items-center gap-2">
-                        <span class="text-sm font-bold text-gray-500">{{ loop.index }}</span>
-                        <div class="w-2.5 h-2.5 rounded-full" style="background-color: {{ s.color }}"></div>
-                        <span class="text-sm text-white font-medium">{{ s.team }}</span>
+        {% if group_b %}
+        <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+            <h3 class="text-sm font-bold text-white mb-4">Group B</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-500 border-b border-gray-700">
+                            <th class="pb-2 font-medium">#</th>
+                            <th class="pb-2 font-medium">Team</th>
+                            <th class="pb-2 font-medium text-center">P</th>
+                            <th class="pb-2 font-medium text-center">W</th>
+                            <th class="pb-2 font-medium text-center">L</th>
+                            <th class="pb-2 font-medium text-center">Pts</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-800">
+                        {% for team in group_b %}
+                        <tr class="{% if loop.index <= 2 %}border-l-2 border-l-emerald-500{% endif %}">
+                            <td class="py-2 text-gray-500 font-mono">{{ loop.index }}</td>
+                            <td class="py-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-2.5 h-2.5 rounded-full" style="background-color: {{ team.color|default('#6B7280') }}"></span>
+                                    <span class="font-medium text-white">{{ team.name }}</span>
+                                </div>
+                            </td>
+                            <td class="py-2 text-center text-gray-300">{{ team.played|default(0) }}</td>
+                            <td class="py-2 text-center text-emerald-400">{{ team.won|default(0) }}</td>
+                            <td class="py-2 text-center text-red-400">{{ team.lost|default(0) }}</td>
+                            <td class="py-2 text-center text-white font-bold">{{ team.points|default(0) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Playoff Bracket -->
+    {% if playoffs %}
+    <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+        <h2 class="text-lg font-bold text-white mb-4">Playoff Bracket</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+            <!-- Qualifier 1 -->
+            <div class="space-y-4">
+                <div class="bg-gray-900/50 border border-emerald-500/30 rounded-lg p-4">
+                    <p class="text-xs text-emerald-400 font-semibold mb-2">Qualifier 1</p>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-white">{{ playoffs.q1_team_a|default('1st') }}</span>
+                        <span class="text-gray-600">vs</span>
+                        <span class="text-sm font-medium text-white">{{ playoffs.q1_team_b|default('2nd') }}</span>
                     </div>
-                    <div class="flex items-center gap-4 text-xs">
-                        <span class="text-gray-400">{{ s.played }}P</span>
-                        <span class="text-green-400">{{ s.won }}W</span>
-                        <span class="text-white font-bold">{{ s.pts }} pts</span>
-                    </div>
+                    {% if playoffs.q1_winner %}
+                    <p class="text-xs text-emerald-400 mt-2">Winner: {{ playoffs.q1_winner }}</p>
+                    {% endif %}
                 </div>
-                {% endfor %}
+                <div class="bg-gray-900/50 border border-gray-700/50 rounded-lg p-4">
+                    <p class="text-xs text-amber-400 font-semibold mb-2">Eliminator</p>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-white">{{ playoffs.elim_team_a|default('3rd') }}</span>
+                        <span class="text-gray-600">vs</span>
+                        <span class="text-sm font-medium text-white">{{ playoffs.elim_team_b|default('4th') }}</span>
+                    </div>
+                    {% if playoffs.elim_winner %}
+                    <p class="text-xs text-emerald-400 mt-2">Winner: {{ playoffs.elim_winner }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            <!-- Qualifier 2 -->
+            <div class="flex items-center justify-center">
+                <div class="bg-gray-900/50 border border-gray-700/50 rounded-lg p-4 w-full">
+                    <p class="text-xs text-blue-400 font-semibold mb-2">Qualifier 2</p>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-white">{{ playoffs.q2_team_a|default('Loser Q1') }}</span>
+                        <span class="text-gray-600">vs</span>
+                        <span class="text-sm font-medium text-white">{{ playoffs.q2_team_b|default('Winner Elim') }}</span>
+                    </div>
+                    {% if playoffs.q2_winner %}
+                    <p class="text-xs text-emerald-400 mt-2">Winner: {{ playoffs.q2_winner }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            <!-- Final -->
+            <div class="flex items-center justify-center">
+                <div class="bg-gray-900/50 border border-amber-500/30 rounded-lg p-4 w-full">
+                    <p class="text-xs text-amber-400 font-semibold mb-2">FINAL</p>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-white">{{ playoffs.final_team_a|default('Winner Q1') }}</span>
+                        <span class="text-gray-600">vs</span>
+                        <span class="text-sm font-medium text-white">{{ playoffs.final_team_b|default('Winner Q2') }}</span>
+                    </div>
+                    {% if playoffs.champion %}
+                    <p class="text-xs text-amber-400 mt-2 font-bold">Champion: {{ playoffs.champion }}</p>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
+    {% endif %}
 
-    <!-- Schedule -->
-    <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-white">Full Schedule</h3>
-            <div class="flex bg-gray-800 rounded-lg p-0.5">
-                <button @click="view = 'list'" :class="view === 'list' ? 'bg-gray-700 text-white' : 'text-gray-500'" class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors">List</button>
-                <button @click="view = 'compact'" :class="view === 'compact' ? 'bg-gray-700 text-white' : 'text-gray-500'" class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors">Compact</button>
-            </div>
-        </div>
+    <!-- Full Schedule -->
+    <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
+        <h2 class="text-lg font-bold text-white mb-4">Full Schedule</h2>
+        <div class="space-y-2">
+            {% for match in schedule|default([]) %}
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-4 rounded-lg border
+                {% if match.is_next %}border-emerald-500/50 bg-emerald-500/5
+                {% elif match.status == 'completed' %}border-gray-700/50 bg-gray-900/30
+                {% else %}border-gray-700/50 bg-gray-900/50{% endif %}
+                hover:bg-gray-800/50 transition-colors">
 
-        <!-- List View -->
-        <div x-show="view === 'list'" class="space-y-3">
-            {% for f in fixtures %}
-            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-gray-800 rounded-lg hover:bg-gray-750 transition-colors gap-3
-                        {% if f.status == 'upcoming' %}border-l-4 border-amber-500{% else %}border-l-4 border-green-600{% endif %}">
-                <div class="flex-1">
-                    <div class="flex items-center gap-2 mb-1">
-                        <span class="text-sm font-semibold text-white">{{ f.team_a }}</span>
-                        <span class="text-xs text-gray-500">vs</span>
-                        <span class="text-sm font-semibold text-white">{{ f.team_b }}</span>
-                    </div>
-                    <div class="flex items-center gap-3 text-xs text-gray-500">
-                        <span>{{ f.match_date }}</span>
-                        <span>{{ f.match_time or '' }}</span>
-                        <span>{{ f.venue }}</span>
-                    </div>
-                </div>
                 <div class="flex items-center gap-3">
-                    {% if f.status == 'completed' %}
-                    <div class="text-right">
-                        <p class="text-xs text-green-400">{{ f.result or 'Completed' }}</p>
-                        {% if f.team_a_score %}
-                        <p class="text-xs text-gray-500">{{ f.team_a_score }} vs {{ f.team_b_score }}</p>
-                        {% endif %}
-                    </div>
-                    <span class="px-2 py-1 bg-green-900/50 text-green-400 text-xs rounded-full">Done</span>
-                    {% else %}
-                    {% if f.prediction %}
-                    <div class="text-right">
-                        <p class="text-xs text-gray-400">{{ f.prediction.predicted_winner }}</p>
-                        <p class="text-xs text-green-400">{{ (f.prediction.team_a_win_prob * 100)|round(0) }}% - {{ (f.prediction.team_b_win_prob * 100)|round(0) }}%</p>
-                    </div>
+                    <span class="text-xs text-gray-500 w-20 flex-shrink-0">{{ match.date }}</span>
+                    {% if match.is_next %}
+                    <span class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-xs font-semibold">NEXT</span>
                     {% endif %}
-                    <a href="{{ url_for('match_detail', team_a=f.team_a, team_b=f.team_b, match_date=f.match_date) }}"
-                       class="px-3 py-1 bg-green-900/50 hover:bg-green-900/70 text-green-400 text-xs rounded-full transition-colors">
-                        Predict
-                    </a>
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full" style="background-color: {{ match.team_a_color|default('#6B7280') }}"></span>
+                        <span class="text-sm font-medium {% if match.status == 'completed' and match.winner == match.team_a %}text-emerald-400{% else %}text-white{% endif %}">{{ match.team_a }}</span>
+                        <span class="text-gray-600 text-xs mx-1">vs</span>
+                        <span class="text-sm font-medium {% if match.status == 'completed' and match.winner == match.team_b %}text-emerald-400{% else %}text-white{% endif %}">{{ match.team_b }}</span>
+                        <span class="w-2.5 h-2.5 rounded-full" style="background-color: {{ match.team_b_color|default('#6B7280') }}"></span>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <span class="text-xs text-gray-500">{{ match.venue|default('') }}</span>
+                    {% if match.status == 'completed' %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-700 text-gray-300">
+                        {{ match.result|default('Completed') }}
+                    </span>
+                    {% elif match.status == 'upcoming' and match.prediction %}
+                    <div class="flex items-center gap-2">
+                        <div class="w-16 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                            <div class="h-full bg-emerald-500 rounded-full" style="width: {{ match.prediction.team_a_win|default(50) }}%"></div>
+                        </div>
+                        <span class="text-xs text-gray-400 font-mono">{{ "%.0f"|format(match.prediction.team_a_win|default(50)) }}%</span>
+                    </div>
                     {% endif %}
                 </div>
             </div>
+            {% else %}
+            <div class="text-center py-8 text-gray-500">No schedule data available</div>
             {% endfor %}
         </div>
-
-        <!-- Compact View -->
-        <div x-show="view === 'compact'" x-cloak class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="text-xs text-gray-500 border-b border-gray-800">
-                        <th class="py-2 text-left">Date</th>
-                        <th class="py-2 text-left">Match</th>
-                        <th class="py-2 text-left">Venue</th>
-                        <th class="py-2 text-center">Status</th>
-                        <th class="py-2 text-right">Result / Prediction</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for f in fixtures %}
-                    <tr class="border-b border-gray-800/50 hover:bg-gray-800/50">
-                        <td class="py-2 text-gray-400 text-xs">{{ f.match_date }}</td>
-                        <td class="py-2 text-white">{{ team_short.get(f.team_a, f.team_a[:3]) }} vs {{ team_short.get(f.team_b, f.team_b[:3]) }}</td>
-                        <td class="py-2 text-gray-500 text-xs">{{ f.venue[:20] }}...</td>
-                        <td class="py-2 text-center">
-                            {% if f.status == 'completed' %}
-                            <span class="text-xs text-green-400">Done</span>
-                            {% else %}
-                            <span class="text-xs text-amber-400">Upcoming</span>
-                            {% endif %}
-                        </td>
-                        <td class="py-2 text-right text-xs">
-                            {% if f.status == 'completed' %}
-                            <span class="text-gray-300">{{ f.winner or 'N/A' }}</span>
-                            {% elif f.prediction %}
-                            <span class="text-green-400">{{ team_short.get(f.prediction.predicted_winner, '?') }} ({{ (f.prediction.confidence * 100)|round(0) }}%)</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
     </div>
 
-    <!-- Playoff Bracket placeholder -->
-    <div class="bg-gray-900 border border-gray-800 rounded-xl p-6">
-        <h3 class="text-lg font-semibold text-white mb-4">Playoff Bracket</h3>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
-            <div class="space-y-4">
-                <p class="text-xs text-gray-500 uppercase tracking-wider text-center">Qualifier 1</p>
-                <div class="bg-gray-800 rounded-lg p-4 text-center border border-gray-700">
-                    <p class="text-sm text-gray-400">#1 vs #2</p>
-                    <p class="text-xs text-gray-600 mt-1">Winner to Final</p>
-                </div>
-                <p class="text-xs text-gray-500 uppercase tracking-wider text-center">Eliminator</p>
-                <div class="bg-gray-800 rounded-lg p-4 text-center border border-gray-700">
-                    <p class="text-sm text-gray-400">#3 vs #4</p>
-                    <p class="text-xs text-gray-600 mt-1">Loser eliminated</p>
-                </div>
-            </div>
-            <div class="flex justify-center">
-                <div class="space-y-4">
-                    <p class="text-xs text-gray-500 uppercase tracking-wider text-center">Qualifier 2</p>
-                    <div class="bg-gray-800 rounded-lg p-4 text-center border border-gray-700">
-                        <p class="text-sm text-gray-400">Loser Q1 vs Winner Elim.</p>
-                        <p class="text-xs text-gray-600 mt-1">Winner to Final</p>
-                    </div>
-                </div>
-            </div>
-            <div class="flex justify-center">
-                <div class="space-y-4">
-                    <p class="text-xs text-yellow-500 uppercase tracking-wider text-center font-bold">Final</p>
-                    <div class="bg-gray-800 rounded-lg p-4 text-center border-2 border-yellow-600/50">
-                        <p class="text-sm text-yellow-400">Winner Q1 vs Winner Q2</p>
-                        <p class="text-xs text-yellow-600 mt-1">PSL 2026 Champion</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
 {% endblock %}

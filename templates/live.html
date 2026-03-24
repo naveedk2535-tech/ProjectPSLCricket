@@ -1,11 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}Live Match{% endblock %}
+{% block title %}{% if is_hub|default(false) %}Live — Today's Matches{% else %}Live Match{% endif %}{% endblock %}
 
-{% block page_title %}Live Match{% endblock %}
+{% block page_title %}{% if is_hub|default(false) %}Live — Today's Matches{% else %}Live Match{% endif %}{% endblock %}
 {% block breadcrumb %}
-<span class="text-gray-600">/</span>
-<a href="{{ url_for('dashboard') }}" class="text-gray-500 hover:text-gray-300">Dashboard</a>
 <span class="text-gray-600">/</span>
 <span class="text-gray-400">Live</span>
 {% endblock %}
@@ -24,7 +22,108 @@
 {% endblock %}
 
 {% block content %}
-{% if live %}
+{% if is_hub|default(false) %}
+<!-- ===== LIVE HUB VIEW ===== -->
+<div class="space-y-5">
+    {% if matches %}
+        {% set live_now = matches|selectattr('status', 'equalto', 'LIVE')|list %}
+        {% set today_scheduled = matches|selectattr('status', 'equalto', 'SCHEDULED')|list %}
+        {% set today_completed = matches|selectattr('status', 'equalto', 'COMPLETED')|list %}
+
+        {% if live_now %}
+        <div>
+            <div class="flex items-center gap-2 mb-3">
+                <span class="flex h-2.5 w-2.5 relative"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span></span>
+                <h2 class="text-sm font-bold text-white uppercase tracking-wider">Live Now</h2>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {% for m in live_now %}
+                <a href="{{ url_for('live_match', match_id=m.id) }}" class="block bg-white/5 border border-red-500/20 rounded-xl p-5 hover:border-red-500/40 transition-all">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 text-[10px] font-bold uppercase">● Live</span>
+                        <span class="text-[10px] text-gray-500">{{ m.venue }}</span>
+                    </div>
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background:{{ m.team_a_color }}"></span><span class="text-sm font-bold text-white">{{ m.team_a }}</span></div>
+                        {% if m.live %}<span class="text-lg font-black text-emerald-400">{{ m.live.current_score|default(0) }}/{{ m.live.current_wickets|default(0) }}</span>{% endif %}
+                    </div>
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background:{{ m.team_b_color }}"></span><span class="text-sm font-bold text-white">{{ m.team_b }}</span></div>
+                    </div>
+                    <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
+                        <div class="h-full rounded-full bg-emerald-500" style="width: {{ m.team_a_win }}%"></div>
+                    </div>
+                    <div class="flex justify-between mt-1 text-[10px]"><span class="text-gray-400">{{ m.team_a_win }}%</span><span class="text-gray-400">{{ m.team_b_win }}%</span></div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if today_scheduled %}
+        <div>
+            <h2 class="text-sm font-bold text-white uppercase tracking-wider mb-3">Today's Upcoming</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {% for m in today_scheduled %}
+                <div class="bg-white/5 border border-white/10 rounded-xl p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-[10px] text-gray-500">{{ m.match_time|default('TBD') }} PKT</span>
+                        <span class="text-[10px] text-gray-500">{{ m.venue }}</span>
+                    </div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background:{{ m.team_a_color }}"></span><span class="text-sm font-semibold text-white">{{ m.team_a }}</span></div>
+                        <span class="text-sm font-bold {% if m.team_a_win >= m.team_b_win %}text-emerald-400{% else %}text-gray-500{% endif %}">{{ m.team_a_win }}%</span>
+                    </div>
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background:{{ m.team_b_color }}"></span><span class="text-sm font-semibold text-white">{{ m.team_b }}</span></div>
+                        <span class="text-sm font-bold {% if m.team_b_win > m.team_a_win %}text-emerald-400{% else %}text-gray-500{% endif %}">{{ m.team_b_win }}%</span>
+                    </div>
+                    <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
+                        <div class="h-full rounded-l-full" style="width: {{ m.team_a_win }}%; background: {{ m.team_a_color }}; opacity: 0.8"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if today_completed %}
+        <div>
+            <h2 class="text-sm font-bold text-white uppercase tracking-wider mb-3">Completed Today</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {% for m in today_completed %}
+                <div class="bg-white/5 border border-white/10 rounded-xl p-5 opacity-75">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-[10px] text-emerald-400 font-bold uppercase">Completed</span>
+                        <span class="text-[10px] text-gray-500">{{ m.venue }}</span>
+                    </div>
+                    <p class="text-sm text-white font-semibold">{{ m.team_a }} vs {{ m.team_b }}</p>
+                    <p class="text-xs text-gray-400 mt-1">{{ m.result|default('Result pending') }}</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if not live_now and not today_scheduled and not today_completed %}
+        <div class="text-center py-12">
+            <svg class="w-12 h-12 text-gray-700 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <p class="text-gray-500 text-sm">No matches today</p>
+        </div>
+        {% endif %}
+
+    {% else %}
+        <div class="text-center py-12">
+            <svg class="w-12 h-12 text-gray-700 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <p class="text-gray-500 text-sm">No matches today</p>
+            {% if next_match %}
+            <p class="text-gray-600 text-xs mt-2">Next match day: <span class="text-emerald-400 font-medium">{{ next_match.match_date }}</span> ({{ next_match.count }} match{{ 'es' if next_match.count > 1 }})</p>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+
+{% elif live %}
 <div x-data="{
     autoMode: true,
     countdown: 30,

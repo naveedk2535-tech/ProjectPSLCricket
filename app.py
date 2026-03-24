@@ -654,8 +654,64 @@ def match_detail(team_a, team_b, match_date):
 
 
 # ---------------------------------------------------------------------------
-# LIVE MATCH
+# LIVE HUB + LIVE MATCH
 # ---------------------------------------------------------------------------
+
+@app.route("/live")
+@login_required
+def live_hub():
+    """Live hub — shows today's matches (live, upcoming today, completed today)."""
+    from datetime import date
+    today = date.today().isoformat()
+
+    # Today's matches
+    todays_matches = db.fetch_all(
+        "SELECT * FROM fixtures WHERE match_date = ? ORDER BY match_time ASC",
+        [today]
+    )
+
+    # Enrich with predictions and live data
+    matches = []
+    for f in todays_matches:
+        match = dict(f)
+        # Get prediction
+        pred = db.fetch_one(
+            "SELECT * FROM predictions WHERE team_a = ? AND team_b = ? AND match_date = ?",
+            [f["team_a"], f["team_b"], f["match_date"]]
+        )
+        if pred:
+            match["team_a_win"] = round((pred["team_a_win"] or 0.5) * 100, 1)
+            match["team_b_win"] = round((pred["team_b_win"] or 0.5) * 100, 1)
+        else:
+            match["team_a_win"] = 50
+            match["team_b_win"] = 50
+
+        # Get live data if match is live
+        live_row = db.fetch_one("SELECT * FROM live_matches WHERE fixture_id = ?", [f["id"]])
+        if live_row:
+            match["live"] = dict(live_row)
+        else:
+            match["live"] = None
+
+        match["team_a_color"] = team_color_filter(f["team_a"])
+        match["team_b_color"] = team_color_filter(f["team_b"])
+        matches.append(match)
+
+    # If no matches today, show next match day
+    next_match = None
+    if not matches:
+        next_match = db.fetch_one(
+            "SELECT match_date, COUNT(*) as count FROM fixtures WHERE status = 'SCHEDULED' AND match_date > ? GROUP BY match_date ORDER BY match_date LIMIT 1",
+            [today]
+        )
+
+    return render_template("live.html",
+        matches=matches,
+        next_match=next_match,
+        today=today,
+        is_hub=True,
+    )
+
 
 @app.route("/live/<int:match_id>")
 @login_required
@@ -1724,35 +1780,68 @@ def api_live_toggle_auto(fixture_id):
 
 
 @app.route("/api/refresh-data", methods=["POST"])
-@admin_required
+@login_required
 def api_refresh_data():
-    """Trigger data refresh — fixtures, odds, weather, predictions."""
+    """Trigger full data refresh — fixtures, odds, weather, sentiment, predictions.
+    Called by the Refresh Data button on dashboard."""
     results = {}
-    try:
-        from data.cricket_api import fetch_fixtures
-        fetch_fixtures()
-        results["fixtures"] = "ok"
-    except Exception as exc:
-        results["fixtures"] = str(exc)
 
+    # 1. Fixtures from CricAPI
     try:
-        from data.odds_api import fetch_odds
-        fetch_odds()
-        results["odds"] = "ok"
+        from data.cricket_api import get_psl_fixtures, save_fixtures_to_db
+        fixtures = get_psl_fixtures()
+        if fixtures:
+            save_fixtures_to_db(fixtures)
+        results["fixtures"] = f"{len(fixtures)} fetched" if fixtures else "no new fixtures (cached/rate-limited)"
     except Exception as exc:
-        results["odds"] = str(exc)
+        results["fixtures"] = f"error: {exc}"
 
+    # 2. Odds from The Odds API
     try:
-        from data.weather_api import fetch_weather
-        fetch_weather()
-        results["weather"] = "ok"
+        from data.odds_api import get_odds, save_odds_to_db
+        odds = get_odds()
+        if odds:
+            save_odds_to_db(odds)
+        results["odds"] = f"{len(odds)} fetched" if odds else "no odds available yet"
     except Exception as exc:
-        results["weather"] = str(exc)
+        results["odds"] = f"error: {exc}"
 
+    # 3. Weather for upcoming matches
+    try:
+        from data.weather_api import get_match_weather, save_weather_to_db
+        upcoming = db.fetch_all(
+            "SELECT DISTINCT venue, match_date, match_time FROM fixtures WHERE status IN ('SCHEDULED','LIVE') ORDER BY match_date LIMIT 5"
+        )
+        weather_count = 0
+        for fix in upcoming:
+            if fix.get("venue"):
+                w = get_match_weather(fix["venue"], fix["match_date"], fix.get("match_time"))
+                if w:
+                    save_weather_to_db(w)
+                    weather_count += 1
+        results["weather"] = f"{weather_count} venues updated"
+    except Exception as exc:
+        results["weather"] = f"error: {exc}"
+
+    # 4. Live scores (if any matches are live)
+    try:
+        from data.cricket_api import get_live_score
+        live_fixtures = db.fetch_all("SELECT * FROM fixtures WHERE status = 'LIVE'")
+        for lf in live_fixtures:
+            if lf.get("cricapi_id"):
+                score = get_live_score(lf["cricapi_id"])
+                if score:
+                    results["live"] = f"score updated for {lf['team_a']} vs {lf['team_b']}"
+        if not live_fixtures:
+            results["live"] = "no live matches"
+    except Exception as exc:
+        results["live"] = f"error: {exc}"
+
+    # 5. Regenerate predictions for upcoming matches
     try:
         from models.ensemble import predict as ens_predict, save_prediction
         upcoming = db.fetch_all(
-            "SELECT * FROM fixtures WHERE status = 'SCHEDULED' ORDER BY match_date ASC LIMIT 10"
+            "SELECT * FROM fixtures WHERE status IN ('SCHEDULED','LIVE') ORDER BY match_date ASC LIMIT 10"
         )
         pred_count = 0
         for fix in upcoming:
@@ -1764,9 +1853,9 @@ def api_refresh_data():
                     pred_count += 1
             except Exception:
                 pass
-        results["predictions"] = f"{pred_count} generated"
+        results["predictions"] = f"{pred_count} updated"
     except Exception as exc:
-        results["predictions"] = str(exc)
+        results["predictions"] = f"error: {exc}"
 
     return jsonify({"status": "ok", "results": results})
 

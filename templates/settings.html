@@ -1,274 +1,249 @@
 {% extends "base.html" %}
 
 {% block title %}Settings{% endblock %}
-
 {% block page_title %}Settings{% endblock %}
-{% block breadcrumb %}
-<span class="text-gray-600">/</span>
-<span class="text-gray-400">Settings</span>
-{% endblock %}
+{% block breadcrumb %}<span class="text-gray-600">/</span><span>Settings</span>{% endblock %}
 
 {% block content %}
-<div class="space-y-6" x-data="{
-    weights: {
-        batting_bowling: {{ weights.batting_bowling|default(0.25) }},
-        elo: {{ weights.elo|default(0.25) }},
-        xgboost: {{ weights.xgboost|default(0.35) }},
-        sentiment: {{ weights.sentiment|default(0.15) }}
-    },
-    activeSection: 'users'
-}">
+<div x-data="{ activeTab: 'users' }" class="space-y-6">
 
-    <!-- Section Tabs -->
-    <div class="flex items-center gap-1 bg-gray-800/50 border border-gray-700 rounded-xl p-1 w-fit">
-        <button @click="activeSection = 'users'" :class="activeSection === 'users' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'"
-                class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">User Management</button>
-        <button @click="activeSection = 'weights'" :class="activeSection === 'weights' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'"
-                class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">Model Weights</button>
-        <button @click="activeSection = 'portfolios'" :class="activeSection === 'portfolios' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'"
-                class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">Portfolios</button>
+  <!-- Tab Navigation -->
+  <div class="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl p-1 w-fit">
+    <button @click="activeTab = 'users'" :class="activeTab === 'users' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'"
+      class="px-4 py-2 rounded-lg text-sm font-semibold transition-all">
+      Users
+    </button>
+    <button @click="activeTab = 'weights'" :class="activeTab === 'weights' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'"
+      class="px-4 py-2 rounded-lg text-sm font-semibold transition-all">
+      Model Weights
+    </button>
+    <button @click="activeTab = 'portfolios'" :class="activeTab === 'portfolios' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'"
+      class="px-4 py-2 rounded-lg text-sm font-semibold transition-all">
+      Portfolios
+    </button>
+    <button @click="activeTab = 'password'" :class="activeTab === 'password' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'"
+      class="px-4 py-2 rounded-lg text-sm font-semibold transition-all">
+      Password
+    </button>
+  </div>
+
+  <!-- ========== USERS TAB ========== -->
+  <div x-show="activeTab === 'users'" x-transition class="space-y-4">
+
+    <!-- Add User Form -->
+    <div class="bg-white/5 border border-white/10 rounded-xl p-5">
+      <h3 class="text-sm font-bold text-white mb-4">Add User</h3>
+      <form method="POST" action="{{ url_for('add_user') }}" class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div>
+          <label class="block text-[11px] uppercase tracking-wider text-gray-500 mb-1.5">Username</label>
+          <input type="text" name="username" required placeholder="username" class="w-full bg-gray-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none">
+        </div>
+        <div>
+          <label class="block text-[11px] uppercase tracking-wider text-gray-500 mb-1.5">Password</label>
+          <input type="password" name="password" required placeholder="password" class="w-full bg-gray-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none">
+        </div>
+        <div>
+          <label class="block text-[11px] uppercase tracking-wider text-gray-500 mb-1.5">Role</label>
+          <select name="role" class="w-full bg-gray-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none">
+            <option value="viewer">Viewer</option>
+            <option value="analyst">Analyst</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div class="flex items-end">
+          <button type="submit" class="w-full px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">
+            Add User
+          </button>
+        </div>
+      </form>
     </div>
 
-    <!-- User Management -->
-    <div x-show="activeSection === 'users'" class="space-y-6">
-        <!-- Add User -->
-        <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-            <h3 class="text-sm font-bold text-white mb-4">Add New User</h3>
-            <form method="POST" action="{{ url_for('add_user') }}" class="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">Username</label>
-                    <input type="text" name="username" required placeholder="johndoe"
-                           class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors">
+    <!-- Users Table -->
+    <div class="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
+      <div class="px-5 py-3.5 border-b border-white/5">
+        <h3 class="text-sm font-bold text-white">All Users ({{ users|length }})</h3>
+      </div>
+      {% if users %}
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-white/5">
+              <th class="text-left px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Username</th>
+              <th class="text-left px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Role</th>
+              <th class="text-left px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Created</th>
+              <th class="text-right px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-white/5">
+            {% for u in users %}
+            <tr class="hover:bg-white/[0.02] transition-colors">
+              <td class="px-5 py-3">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold
+                    {% if u.role == 'admin' %}bg-amber-500/15 text-amber-400{% else %}bg-emerald-500/15 text-emerald-400{% endif %}">
+                    {{ u.username[0]|upper }}
+                  </div>
+                  <span class="font-medium text-white">{{ u.username }}</span>
                 </div>
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">Password</label>
-                    <input type="password" name="password" required placeholder="Min 8 characters"
-                           class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors">
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">Role</label>
-                    <select name="role" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500">
-                        <option value="analyst">Analyst</option>
-                        <option value="admin">Admin</option>
-                        <option value="viewer">Viewer</option>
-                    </select>
-                </div>
-                <div class="flex items-end">
-                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors">
-                        Add User
-                    </button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Users List -->
-        <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-            <h3 class="text-sm font-bold text-white mb-4">Active Users</h3>
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                    <thead>
-                        <tr class="text-left text-gray-500 border-b border-gray-700">
-                            <th class="pb-3 font-medium">Username</th>
-                            <th class="pb-3 font-medium">Role</th>
-                            <th class="pb-3 font-medium">Created</th>
-                            <th class="pb-3 font-medium text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-800">
-                        {% for user in users|default([]) %}
-                        <tr class="hover:bg-gray-800/50">
-                            <td class="py-3">
-                                <div class="flex items-center gap-2">
-                                    <div class="w-7 h-7 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                                        <span class="text-emerald-400 text-xs font-bold">{{ user.username[0]|upper }}</span>
-                                    </div>
-                                    <span class="text-white font-medium">{{ user.username }}</span>
-                                </div>
-                            </td>
-                            <td class="py-3">
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                                    {% if user.role == 'admin' %}bg-amber-500/10 text-amber-400
-                                    {% elif user.role == 'analyst' %}bg-blue-500/10 text-blue-400
-                                    {% else %}bg-gray-700 text-gray-400{% endif %}">
-                                    {{ user.role|capitalize }}
-                                </span>
-                            </td>
-                            <td class="py-3 text-gray-500 text-xs">{{ user.created|default('-') }}</td>
-                            <td class="py-3 text-right">
-                                <form method="POST" action="{{ url_for('delete_user', user_id=user.id) }}" class="inline"
-                                      onsubmit="return confirm('Delete user {{ user.username }}?')">
-                                    <button type="submit" class="text-gray-400 hover:text-red-400 transition-colors p-1" title="Delete user">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                    </button>
-                                </form>
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="4" class="py-8 text-center text-gray-500">No users found</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Change Password -->
-        <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-            <h3 class="text-sm font-bold text-white mb-4">Change Your Password</h3>
-            <form method="POST" action="{{ url_for('change_password') }}" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">Current Password</label>
-                    <input type="password" name="current_password" required
-                           class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors">
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">New Password</label>
-                    <input type="password" name="new_password" required
-                           class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors">
-                </div>
-                <div class="flex items-end">
-                    <button type="submit" class="w-full bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors">
-                        Update Password
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Model Weights -->
-    <div x-show="activeSection === 'weights'" class="space-y-6">
-        <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-            <h3 class="text-sm font-bold text-white mb-6">Ensemble Model Weights</h3>
-            <form method="POST" action="{{ url_for('save_weights') }}" class="space-y-6">
-                <!-- Batting/Bowling -->
-                <div>
-                    <div class="flex items-center justify-between mb-2">
-                        <label class="text-sm text-gray-300">Batting &amp; Bowling</label>
-                        <span class="text-sm font-mono text-white" x-text="(weights.batting_bowling * 100).toFixed(0) + '%'"></span>
-                    </div>
-                    <input type="range" name="batting_bowling" min="0" max="1" step="0.05"
-                           x-model.number="weights.batting_bowling"
-                           class="w-full h-2 bg-gray-700 rounded-full appearance-none cursor-pointer accent-emerald-500">
-                </div>
-                <!-- Elo -->
-                <div>
-                    <div class="flex items-center justify-between mb-2">
-                        <label class="text-sm text-gray-300">Elo Ratings</label>
-                        <span class="text-sm font-mono text-white" x-text="(weights.elo * 100).toFixed(0) + '%'"></span>
-                    </div>
-                    <input type="range" name="elo" min="0" max="1" step="0.05"
-                           x-model.number="weights.elo"
-                           class="w-full h-2 bg-gray-700 rounded-full appearance-none cursor-pointer accent-emerald-500">
-                </div>
-                <!-- XGBoost -->
-                <div>
-                    <div class="flex items-center justify-between mb-2">
-                        <label class="text-sm text-gray-300">XGBoost</label>
-                        <span class="text-sm font-mono text-white" x-text="(weights.xgboost * 100).toFixed(0) + '%'"></span>
-                    </div>
-                    <input type="range" name="xgboost" min="0" max="1" step="0.05"
-                           x-model.number="weights.xgboost"
-                           class="w-full h-2 bg-gray-700 rounded-full appearance-none cursor-pointer accent-emerald-500">
-                </div>
-                <!-- Sentiment -->
-                <div>
-                    <div class="flex items-center justify-between mb-2">
-                        <label class="text-sm text-gray-300">Sentiment</label>
-                        <span class="text-sm font-mono text-white" x-text="(weights.sentiment * 100).toFixed(0) + '%'"></span>
-                    </div>
-                    <input type="range" name="sentiment" min="0" max="1" step="0.05"
-                           x-model.number="weights.sentiment"
-                           class="w-full h-2 bg-gray-700 rounded-full appearance-none cursor-pointer accent-emerald-500">
-                </div>
-
-                <!-- Total indicator -->
-                <div class="bg-gray-900/50 border border-gray-700/50 rounded-lg p-3">
-                    <div class="flex items-center justify-between">
-                        <span class="text-sm text-gray-400">Total:</span>
-                        <span class="text-sm font-mono font-bold"
-                              :class="Math.abs((weights.batting_bowling + weights.elo + weights.xgboost + weights.sentiment) - 1) < 0.01 ? 'text-emerald-400' : 'text-red-400'"
-                              x-text="((weights.batting_bowling + weights.elo + weights.xgboost + weights.sentiment) * 100).toFixed(0) + '%'"></span>
-                    </div>
-                    <p class="text-xs mt-1"
-                       :class="Math.abs((weights.batting_bowling + weights.elo + weights.xgboost + weights.sentiment) - 1) < 0.01 ? 'text-emerald-400' : 'text-red-400'"
-                       x-text="Math.abs((weights.batting_bowling + weights.elo + weights.xgboost + weights.sentiment) - 1) < 0.01 ? 'Weights sum to 100% — ready to save' : 'Weights must sum to 100%'"></p>
-                </div>
-
-                <div class="flex gap-3">
-                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 px-6 rounded-lg text-sm transition-colors">
-                        Save Weights
-                    </button>
-                    <button type="button" onclick="fetch('{{ url_for('auto_optimize_weights') }}', {method: 'POST'}).then(() => location.reload())"
-                            class="bg-gray-700 hover:bg-gray-600 text-white font-medium py-2.5 px-6 rounded-lg text-sm transition-colors">
-                        Auto-Optimize
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Portfolio Management -->
-    <div x-show="activeSection === 'portfolios'" class="space-y-6">
-        <!-- Create Portfolio -->
-        <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-            <h3 class="text-sm font-bold text-white mb-4">Create New Portfolio</h3>
-            <form method="POST" action="{{ url_for('create_portfolio') }}" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">Portfolio Name</label>
-                    <input type="text" name="name" required placeholder="e.g., Aggressive PSL"
-                           class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors">
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">Starting Bankroll</label>
-                    <input type="number" name="starting_bankroll" required step="100" min="0" placeholder="10000"
-                           class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors">
-                </div>
-                <div class="flex items-end">
-                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors">
-                        Create Portfolio
-                    </button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Active Portfolios -->
-        <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-            <h3 class="text-sm font-bold text-white mb-4">Active Portfolios</h3>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {% for p in portfolios|default([]) %}
-                <div class="bg-gray-900/50 border border-gray-700/50 rounded-lg p-4">
-                    <div class="flex items-center justify-between mb-3">
-                        <h4 class="text-sm font-bold text-white">{{ p.name }}</h4>
-                        {% if p.is_active %}
-                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-                        {% endif %}
-                    </div>
-                    <div class="space-y-2 text-xs">
-                        <div class="flex justify-between">
-                            <span class="text-gray-400">Bankroll</span>
-                            <span class="text-white font-mono">{{ "%.0f"|format(p.bankroll|default(0)) }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-gray-400">Starting</span>
-                            <span class="text-gray-300 font-mono">{{ "%.0f"|format(p.starting_bankroll|default(0)) }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-gray-400">P&amp;L</span>
-                            <span class="font-mono {% if p.pnl|default(0) > 0 %}text-emerald-400{% elif p.pnl|default(0) < 0 %}text-red-400{% else %}text-gray-400{% endif %}">{{ "%+.0f"|format(p.pnl|default(0)) }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-gray-400">Bets</span>
-                            <span class="text-gray-300">{{ p.total_bets|default(0) }}</span>
-                        </div>
-                    </div>
-                </div>
+              </td>
+              <td class="px-5 py-3">
+                <span class="inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold
+                  {% if u.role == 'admin' %}bg-amber-500/10 text-amber-400
+                  {% elif u.role == 'analyst' %}bg-blue-500/10 text-blue-400
+                  {% else %}bg-gray-500/10 text-gray-400{% endif %}">
+                  {{ u.role|capitalize }}
+                </span>
+              </td>
+              <td class="px-5 py-3 text-gray-400">{{ u.created }}</td>
+              <td class="px-5 py-3 text-right">
+                {% if u.id != 'admin' %}
+                <form method="POST" action="{{ url_for('delete_user', user_id=u.id) }}" class="inline" onsubmit="return confirm('Delete user {{ u.username }}?')">
+                  <button type="submit" class="text-red-400/60 hover:text-red-400 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  </button>
+                </form>
                 {% else %}
-                <div class="col-span-3 text-center py-8 text-gray-500 text-sm">No portfolios created yet</div>
-                {% endfor %}
-            </div>
-        </div>
+                <span class="text-[11px] text-gray-600">Protected</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="p-8 text-center text-gray-500 text-sm">No users configured.</div>
+      {% endif %}
     </div>
+  </div>
+
+  <!-- ========== WEIGHTS TAB ========== -->
+  <div x-show="activeTab === 'weights'" x-transition class="space-y-4">
+    <div class="bg-white/5 border border-white/10 rounded-xl p-5">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-sm font-bold text-white">Ensemble Model Weights</h3>
+        <form method="POST" action="{{ url_for('auto_optimize_weights') }}" class="inline">
+          <button type="submit" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            Auto-Optimize
+          </button>
+        </form>
+      </div>
+
+      <form method="POST" action="{{ url_for('save_weights') }}" class="space-y-5">
+        {% for key, value in weights.items() %}
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-sm font-medium text-gray-300 capitalize">{{ key|replace('_', ' ') }}</label>
+            <span class="text-sm font-bold text-emerald-400" x-text="document.getElementById('w_{{ key }}')?.value || '{{ value }}'">{{ value }}</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <input type="range" name="{{ key }}" id="w_{{ key }}" min="0" max="1" step="0.05" value="{{ value }}"
+              oninput="this.nextElementSibling.textContent = this.value; this.closest('div').previousElementSibling.querySelector('span').textContent = this.value"
+              class="flex-1 h-1.5 bg-gray-800 rounded-full appearance-none cursor-pointer accent-emerald-500
+                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-emerald-500 [&::-webkit-slider-thumb]:shadow-lg">
+            <span class="text-sm text-gray-400 w-10 text-right font-mono">{{ value }}</span>
+          </div>
+        </div>
+        {% endfor %}
+
+        <div class="pt-2">
+          <button type="submit" class="px-5 py-2 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">
+            Save Weights
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========== PORTFOLIOS TAB ========== -->
+  <div x-show="activeTab === 'portfolios'" x-transition class="space-y-4">
+
+    <!-- Create Portfolio Form -->
+    <div class="bg-white/5 border border-white/10 rounded-xl p-5">
+      <h3 class="text-sm font-bold text-white mb-4">Create Portfolio</h3>
+      <form method="POST" action="{{ url_for('create_portfolio') }}" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div>
+          <label class="block text-[11px] uppercase tracking-wider text-gray-500 mb-1.5">Name</label>
+          <input type="text" name="name" required placeholder="Portfolio name" class="w-full bg-gray-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none">
+        </div>
+        <div>
+          <label class="block text-[11px] uppercase tracking-wider text-gray-500 mb-1.5">Starting Bankroll</label>
+          <input type="number" name="starting_bankroll" min="0" step="100" required placeholder="10000" class="w-full bg-gray-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none">
+        </div>
+        <div class="flex items-end">
+          <button type="submit" class="w-full px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">
+            Create
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Portfolios List -->
+    {% if portfolios %}
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for p in portfolios %}
+      <div class="bg-white/5 border border-white/10 rounded-xl p-5 {% if p.is_active %}border-emerald-500/30{% endif %}">
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="text-sm font-bold text-white">{{ p.name }}</h4>
+          {% if p.is_active %}
+          <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            Active
+          </span>
+          {% else %}
+          <span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-500/10 text-gray-500">Inactive</span>
+          {% endif %}
+        </div>
+        <div class="space-y-2 text-sm">
+          <div class="flex justify-between">
+            <span class="text-gray-500">Bankroll</span>
+            <span class="text-white font-semibold">{{ '{:,.0f}'.format(p.bankroll) }}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-500">Starting</span>
+            <span class="text-gray-400">{{ '{:,.0f}'.format(p.starting_bankroll) }}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-500">P&L</span>
+            <span class="font-semibold {% if p.pnl > 0 %}text-emerald-400{% elif p.pnl < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
+              {{ '%+,.0f'|format(p.pnl) }}
+            </span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-500">Total Bets</span>
+            <span class="text-gray-300">{{ p.total_bets }}</span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-white/5 border border-white/10 rounded-xl p-8 text-center">
+      <p class="text-gray-500 text-sm">No portfolios created yet.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ========== PASSWORD TAB ========== -->
+  <div x-show="activeTab === 'password'" x-transition>
+    <div class="bg-white/5 border border-white/10 rounded-xl p-5 max-w-md">
+      <h3 class="text-sm font-bold text-white mb-4">Change Password</h3>
+      <form method="POST" action="{{ url_for('change_password') }}" class="space-y-4">
+        <div>
+          <label class="block text-[11px] uppercase tracking-wider text-gray-500 mb-1.5">Current Password</label>
+          <input type="password" name="current_password" required class="w-full bg-gray-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none">
+        </div>
+        <div>
+          <label class="block text-[11px] uppercase tracking-wider text-gray-500 mb-1.5">New Password</label>
+          <input type="password" name="new_password" required class="w-full bg-gray-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none">
+        </div>
+        <button type="submit" class="px-5 py-2 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">
+          Update Password
+        </button>
+      </form>
+    </div>
+  </div>
 
 </div>
 {% endblock %}

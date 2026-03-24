@@ -10,269 +10,297 @@
 <span class="text-gray-400">Live</span>
 {% endblock %}
 
+{% block head %}
+<style>
+    @keyframes live-pulse { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239,68,68,0.4); } 50% { opacity: 0.8; box-shadow: 0 0 0 8px rgba(239,68,68,0); } }
+    .live-badge { animation: live-pulse 2s ease-in-out infinite; }
+    @keyframes prob-slide { from { width: 50%; } }
+    .prob-bar-animated { animation: prob-slide 1.2s ease-out; }
+    .moment-dot::before { content: ''; position: absolute; left: 11px; top: 24px; bottom: -16px; width: 1px; background: rgba(255,255,255,0.05); }
+    .moment-dot:last-child::before { display: none; }
+    @keyframes score-pop { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+    .score-pop { animation: score-pop 0.6s ease-out; }
+</style>
+{% endblock %}
+
 {% block content %}
+{% if live %}
 <div x-data="{
     autoMode: true,
     countdown: 30,
-    score: '{{ live.score|default('') }}',
-    wickets: '{{ live.wickets|default('') }}',
-    overs: '{{ live.overs|default('') }}',
     teamAWin: {{ live.team_a_win|default(50) }},
     teamBWin: {{ live.team_b_win|default(50) }},
-    timer: null,
-    startTimer() {
-        this.timer = setInterval(() => {
-            if (this.autoMode) {
-                this.countdown--;
-                if (this.countdown <= 0) {
-                    this.countdown = 30;
-                    this.fetchUpdate();
-                }
+    whatIfScore: '',
+    whatIfWickets: '',
+    whatIfOvers: '',
+    whatIfResult: null,
+    interval: null,
+    init() {
+        this.startCountdown();
+    },
+    startCountdown() {
+        if (this.interval) clearInterval(this.interval);
+        this.countdown = 30;
+        this.interval = setInterval(() => {
+            if (!this.autoMode) return;
+            this.countdown--;
+            if (this.countdown <= 0) {
+                this.countdown = 30;
+                window.location.reload();
             }
         }, 1000);
     },
-    fetchUpdate() {
-        fetch('/api/live/update?match_id={{ live.match_id|default('') }}')
-            .then(r => r.json())
-            .then(data => {
-                if (data.team_a_win !== undefined) {
-                    this.teamAWin = data.team_a_win;
-                    this.teamBWin = data.team_b_win;
-                }
-                if (data.score !== undefined) this.score = data.score;
-            })
-            .catch(() => {});
+    toggleAuto() {
+        this.autoMode = !this.autoMode;
+        if (this.autoMode) this.startCountdown();
     },
-    init() { this.startTimer(); }
-}" class="space-y-6">
+    calcWhatIf() {
+        let s = parseInt(this.whatIfScore) || 0;
+        let w = parseInt(this.whatIfWickets) || 0;
+        let o = parseFloat(this.whatIfOvers) || 0;
+        let rr = o > 0 ? (s / o).toFixed(2) : '-';
+        let proj = o > 0 ? Math.round(s / o * 20) : '-';
+        this.whatIfResult = { rr: rr, projected: proj, score: s + '/' + w + ' (' + o + ' ov)' };
+    }
+}" x-init="init()">
 
-    {% if live %}
-    <!-- Match Header -->
-    <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-        <div class="flex items-center gap-3 mb-4">
-            <span class="flex h-3 w-3 relative">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-            </span>
-            <span class="text-sm font-bold text-red-400 uppercase tracking-wider">Live</span>
-            <span class="text-sm text-gray-500 ml-auto">{{ live.venue|default('') }}</span>
-        </div>
+    {# ===== LIVE HEADER ===== #}
+    <div class="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
+        {# Red gradient top bar #}
+        <div class="h-1 bg-gradient-to-r from-red-600 via-red-500 to-orange-500"></div>
 
-        <div class="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div class="text-center flex-1">
-                <h2 class="text-xl font-bold text-white mb-1">{{ live.team_a }}</h2>
-                <p class="text-3xl font-extrabold text-emerald-400">{{ live.team_a_score|default('0/0') }}</p>
-                <p class="text-sm text-gray-400">({{ live.team_a_overs|default('0.0') }} overs)</p>
-            </div>
-            <div class="text-center px-4">
-                <span class="text-2xl font-bold text-gray-700">vs</span>
-            </div>
-            <div class="text-center flex-1">
-                <h2 class="text-xl font-bold text-white mb-1">{{ live.team_b }}</h2>
-                <p class="text-3xl font-extrabold text-amber-400">{{ live.team_b_score|default('Yet to bat') }}</p>
-                <p class="text-sm text-gray-400">{{ live.team_b_overs|default('') }}</p>
-            </div>
-        </div>
-
-        <!-- Run rates -->
-        <div class="flex flex-wrap justify-center gap-6 mt-4 pt-4 border-t border-gray-700">
-            <div class="text-center">
-                <p class="text-xs text-gray-500">Current RR</p>
-                <p class="text-lg font-bold text-white">{{ live.current_rr|default('-') }}</p>
-            </div>
-            {% if live.required_rr %}
-            <div class="text-center">
-                <p class="text-xs text-gray-500">Required RR</p>
-                <p class="text-lg font-bold {% if live.required_rr > 12 %}text-red-400{% elif live.required_rr > 9 %}text-amber-400{% else %}text-emerald-400{% endif %}">{{ live.required_rr }}</p>
-            </div>
-            {% endif %}
-            {% if live.projected_total %}
-            <div class="text-center">
-                <p class="text-xs text-gray-500">Projected Total</p>
-                <p class="text-lg font-bold text-white">{{ live.projected_total }}</p>
-            </div>
-            {% endif %}
-            {% if live.runs_needed %}
-            <div class="text-center">
-                <p class="text-xs text-gray-500">Runs Needed</p>
-                <p class="text-lg font-bold text-white">{{ live.runs_needed }}</p>
-            </div>
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- Auto/Manual Toggle -->
-    <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="text-sm font-bold text-white">Update Mode</h3>
-            <div class="flex items-center gap-3">
-                <span class="text-xs" :class="autoMode ? 'text-emerald-400' : 'text-gray-500'">Auto</span>
-                <button @click="autoMode = !autoMode; if(autoMode) countdown = 30;"
-                        class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                        :class="autoMode ? 'bg-emerald-600' : 'bg-gray-600'">
-                    <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-                          :class="autoMode ? 'translate-x-6' : 'translate-x-1'"></span>
-                </button>
-                <span class="text-xs" :class="!autoMode ? 'text-amber-400' : 'text-gray-500'">Manual</span>
-            </div>
-        </div>
-
-        <!-- Auto mode -->
-        <div x-show="autoMode" class="flex items-center justify-between bg-gray-900/50 rounded-lg p-3 border border-gray-700/50">
-            <div class="flex items-center gap-2">
-                <svg class="w-4 h-4 text-emerald-400 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                <span class="text-sm text-gray-300">Updating in <span class="font-bold text-white" x-text="countdown"></span> seconds</span>
-            </div>
-            <span class="text-xs text-gray-500">Last: {{ live.last_update|default('--') }}</span>
-        </div>
-
-        <!-- Manual mode -->
-        <div x-show="!autoMode" class="space-y-4">
-            <form method="POST" action="{{ url_for('live_recalculate') }}" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <input type="hidden" name="match_id" value="{{ live.match_id|default('') }}">
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">Score (runs/wickets)</label>
-                    <input type="text" name="score" x-model="score" placeholder="145/3"
-                           class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors">
+        <div class="p-5 md:p-7">
+            {# LIVE badge + auto toggle row #}
+            <div class="flex items-center justify-between mb-5">
+                <div class="flex items-center gap-3">
+                    <div class="live-badge flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/20 border border-red-500/40">
+                        <div class="w-2 h-2 rounded-full bg-red-500"></div>
+                        <span class="text-xs font-black uppercase tracking-widest text-red-400">LIVE</span>
+                    </div>
+                    {% if live.venue %}
+                    <span class="text-xs text-gray-500">{{ live.venue }}</span>
+                    {% endif %}
                 </div>
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">Overs</label>
-                    <input type="text" name="overs" x-model="overs" placeholder="16.2"
-                           class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors">
-                </div>
-                <div class="flex items-end">
-                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors">
-                        Recalculate
+
+                {# Auto/Manual toggle #}
+                <div class="flex items-center gap-3">
+                    <template x-if="autoMode">
+                        <span class="text-[10px] text-gray-500">
+                            Refresh in <span class="text-white font-bold" x-text="countdown"></span>s
+                        </span>
+                    </template>
+                    <button @click="toggleAuto()" :class="autoMode ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' : 'bg-white/5 border-white/10 text-gray-500'"
+                            class="flex items-center gap-1.5 px-3 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider transition-all">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        <span x-text="autoMode ? 'Auto' : 'Manual'"></span>
                     </button>
+                    {% if not live.autoMode|default(true) %}
+                    <form method="POST" action="{{ url_for('live_recalculate') }}" class="inline">
+                        <input type="hidden" name="match_id" value="{{ live.match_id }}">
+                        <button type="submit" class="px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[10px] font-bold uppercase tracking-wider hover:bg-amber-500/30 transition-all">
+                            Recalculate
+                        </button>
+                    </form>
+                    {% endif %}
                 </div>
-            </form>
+            </div>
+
+            {# Big Score Display #}
+            <div class="grid grid-cols-3 items-center gap-4">
+                {# Team A #}
+                <div class="text-center">
+                    <h2 class="text-sm md:text-base font-bold text-white">{{ live.team_a }}</h2>
+                    <div class="score-pop text-3xl md:text-5xl font-black text-white mt-1 tracking-tight">{{ live.team_a_score }}</div>
+                    {% if live.team_a_overs %}
+                    <div class="text-xs text-gray-500 mt-1">({{ live.team_a_overs }} ov)</div>
+                    {% endif %}
+                </div>
+
+                {# Center stats #}
+                <div class="text-center space-y-1">
+                    <div class="text-[10px] text-gray-500 uppercase tracking-wider">CRR</div>
+                    <div class="text-xl font-extrabold text-white">{{ live.current_rr }}</div>
+                    {% if live.required_rr %}
+                    <div class="text-[10px] text-gray-500 mt-2">RRR</div>
+                    <div class="text-lg font-bold text-amber-400">{{ live.required_rr }}</div>
+                    {% endif %}
+                    {% if live.runs_needed %}
+                    <div class="mt-1 text-xs text-gray-400">Need <span class="text-white font-bold">{{ live.runs_needed }}</span> runs</div>
+                    {% endif %}
+                </div>
+
+                {# Team B #}
+                <div class="text-center">
+                    <h2 class="text-sm md:text-base font-bold text-white">{{ live.team_b }}</h2>
+                    <div class="score-pop text-3xl md:text-5xl font-black text-white mt-1 tracking-tight">{{ live.team_b_score }}</div>
+                    {% if live.team_b_overs %}
+                    <div class="text-xs text-gray-500 mt-1">{{ live.team_b_overs }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {# Animated Win Probability Bar #}
+            <div class="mt-6">
+                <div class="flex justify-between text-xs mb-1">
+                    <span class="text-emerald-400 font-bold">{{ live.team_a }} <span x-text="teamAWin.toFixed(1)">{{ '%.1f'|format(live.team_a_win) }}</span>%</span>
+                    <span class="text-amber-400 font-bold"><span x-text="teamBWin.toFixed(1)">{{ '%.1f'|format(live.team_b_win) }}</span>% {{ live.team_b }}</span>
+                </div>
+                <div class="flex h-4 rounded-full overflow-hidden bg-gray-800 border border-white/5">
+                    <div class="prob-bar-animated rounded-l-full bg-gradient-to-r from-emerald-600 to-emerald-500 transition-all duration-1000" :style="'width:' + teamAWin + '%'"></div>
+                    <div class="prob-bar-animated rounded-r-full bg-gradient-to-l from-amber-600 to-amber-500 transition-all duration-1000" :style="'width:' + teamBWin + '%'"></div>
+                </div>
+            </div>
+
+            {# Projected total #}
+            {% if live.projected_total %}
+            <div class="mt-3 flex justify-center">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-gray-400">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                    Projected Total: <span class="text-white font-bold">{{ live.projected_total }}</span>
+                </span>
+            </div>
+            {% endif %}
+
+            {# Last update #}
+            <div class="mt-2 text-center text-[10px] text-gray-600">Last updated: {{ live.last_update }}</div>
         </div>
     </div>
 
-    <!-- Win Probability Bar -->
-    <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-        <h3 class="text-sm font-bold text-white mb-4">Win Probability</h3>
-        <div class="flex items-center justify-between mb-2">
-            <span class="text-sm font-bold text-emerald-400">{{ live.team_a }}</span>
-            <span class="text-sm font-bold text-amber-400">{{ live.team_b }}</span>
-        </div>
-        <div class="h-10 bg-gray-700 rounded-full overflow-hidden flex">
-            <div class="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 flex items-center justify-center text-sm font-bold text-white transition-all duration-1000 ease-out"
-                 :style="'width: ' + teamAWin + '%'">
-                <span x-text="Math.round(teamAWin) + '%'" x-show="teamAWin > 15"></span>
-            </div>
-            <div class="h-full bg-gradient-to-r from-amber-400 to-amber-600 flex items-center justify-center text-sm font-bold text-white transition-all duration-1000 ease-out"
-                 :style="'width: ' + teamBWin + '%'">
-                <span x-text="Math.round(teamBWin) + '%'" x-show="teamBWin > 15"></span>
-            </div>
-        </div>
-    </div>
+    {# ===== TWO-COLUMN: Prop Tracker + Key Moments / What-If ===== #}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Key Moments Timeline -->
-        <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-            <h3 class="text-sm font-bold text-white mb-4">Key Moments</h3>
-            <div class="space-y-3 max-h-64 overflow-y-auto pr-2">
-                {% for moment in live.key_moments|default([]) %}
-                <div class="flex items-start gap-3 bg-gray-900/50 rounded-lg p-3 border border-gray-700/50">
-                    <div class="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
-                        <span class="text-xs font-bold text-emerald-400">{{ moment.over|default('') }}</span>
-                    </div>
-                    <div>
-                        <p class="text-sm text-white font-medium">{{ moment.title }}</p>
-                        <p class="text-xs text-gray-400">{{ moment.description }}</p>
+        {# ===== PROP TRACKER ===== #}
+        {% if live.prop_tracker is defined and live.prop_tracker %}
+        <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <h3 class="text-xs font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                Prop Tracker
+            </h3>
+            <div class="grid grid-cols-2 gap-3">
+                {% for prop_name, actual_key, pred_key, color in [
+                    ('Wides', 'wides_actual', 'wides_predicted', 'text-amber-400'),
+                    ('Sixes', 'sixes_actual', 'sixes_predicted', 'text-purple-400'),
+                    ('Fours', 'fours_actual', 'fours_predicted', 'text-blue-400'),
+                    ('No-Balls', 'noballs_actual', 'noballs_predicted', 'text-orange-400')
+                ] %}
+                <div class="rounded-xl bg-white/[0.03] border border-white/10 p-3">
+                    <div class="text-[10px] text-gray-500 uppercase tracking-wider">{{ prop_name }}</div>
+                    <div class="flex items-end justify-between mt-1">
+                        <div>
+                            <div class="text-2xl font-extrabold {{ color }}">{{ live.prop_tracker[actual_key] }}</div>
+                            <div class="text-[9px] text-gray-600">actual</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-sm font-bold text-gray-400">{{ live.prop_tracker[pred_key] }}</div>
+                            <div class="text-[9px] text-gray-600">predicted</div>
+                        </div>
                     </div>
                 </div>
-                {% else %}
-                <div class="text-center py-8 text-gray-500 text-sm">No key moments yet</div>
                 {% endfor %}
             </div>
         </div>
+        {% endif %}
 
-        <!-- What-If Calculator -->
-        <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6" x-data="{ scenario: '', whatIfResult: null }">
-            <h3 class="text-sm font-bold text-white mb-4">What-If Calculator</h3>
-            <div class="space-y-4">
-                <select x-model="scenario" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500">
-                    <option value="">Select a scenario...</option>
-                    <option value="wicket_falls">Wicket falls next ball</option>
-                    <option value="big_over">15+ run over</option>
-                    <option value="maiden">Maiden over</option>
-                    <option value="powerplay_end">End of powerplay</option>
-                    <option value="collapse">3 wickets in 2 overs</option>
-                    <option value="partnership_50">50-run partnership</option>
-                </select>
-                <button @click="
-                    if (scenario) {
-                        fetch('/api/live/what-if?match_id={{ live.match_id|default('') }}&scenario=' + scenario)
-                            .then(r => r.json())
-                            .then(data => { whatIfResult = data; })
-                            .catch(() => { whatIfResult = { error: 'Failed to calculate' }; });
-                    }
-                " class="w-full bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg text-sm transition-colors">
+        {# ===== KEY MOMENTS TIMELINE ===== #}
+        {% if live.key_moments %}
+        <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <h3 class="text-xs font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Key Moments
+            </h3>
+            <div class="space-y-4 max-h-[300px] overflow-y-auto pr-1">
+                {% for moment in live.key_moments %}
+                <div class="moment-dot relative flex items-start gap-3">
+                    <div class="w-6 h-6 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <div class="w-2 h-2 rounded-full bg-cyan-400"></div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        {% if moment is mapping %}
+                        <div class="text-xs font-semibold text-white">{{ moment.event|default(moment.description|default('')) }}</div>
+                        {% if moment.over %}<div class="text-[10px] text-gray-500">Over {{ moment.over }}</div>{% endif %}
+                        {% else %}
+                        <div class="text-xs text-gray-300">{{ moment }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {# ===== WHAT-IF CALCULATOR ===== #}
+    <div class="mt-4 rounded-2xl border border-white/10 bg-white/5 p-5">
+        <h3 class="text-xs font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+            <svg class="w-4 h-4 text-lime-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+            What-If Calculator
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div>
+                <label class="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Score</label>
+                <input x-model="whatIfScore" type="number" placeholder="150" class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20">
+            </div>
+            <div>
+                <label class="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Wickets</label>
+                <input x-model="whatIfWickets" type="number" placeholder="4" min="0" max="10" class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20">
+            </div>
+            <div>
+                <label class="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Overs</label>
+                <input x-model="whatIfOvers" type="number" step="0.1" placeholder="15.0" class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20">
+            </div>
+            <div class="flex items-end">
+                <button @click="calcWhatIf()" class="w-full px-4 py-2 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold uppercase tracking-wider hover:bg-emerald-500/30 transition-all">
                     Calculate
                 </button>
-                <div x-show="whatIfResult" x-transition class="bg-gray-900/50 border border-gray-700/50 rounded-lg p-4">
-                    <template x-if="whatIfResult && !whatIfResult.error">
-                        <div>
-                            <p class="text-xs text-gray-500 mb-2">Updated Probabilities</p>
-                            <div class="flex items-center justify-between">
-                                <span class="text-sm text-emerald-400 font-bold" x-text="whatIfResult.team_a_win + '%'"></span>
-                                <span class="text-xs text-gray-600">|</span>
-                                <span class="text-sm text-amber-400 font-bold" x-text="whatIfResult.team_b_win + '%'"></span>
-                            </div>
-                            <p class="text-xs text-gray-400 mt-2" x-text="whatIfResult.insight"></p>
-                        </div>
-                    </template>
-                    <template x-if="whatIfResult && whatIfResult.error">
-                        <p class="text-sm text-red-400" x-text="whatIfResult.error"></p>
-                    </template>
+            </div>
+        </div>
+
+        {# Result #}
+        <template x-if="whatIfResult">
+            <div class="mt-3 p-3 rounded-xl bg-white/[0.03] border border-white/10">
+                <div class="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                        <div class="text-[10px] text-gray-500 uppercase">Score</div>
+                        <div class="text-sm font-bold text-white" x-text="whatIfResult.score"></div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-gray-500 uppercase">Run Rate</div>
+                        <div class="text-sm font-bold text-emerald-400" x-text="whatIfResult.rr"></div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-gray-500 uppercase">Projected (20 ov)</div>
+                        <div class="text-sm font-bold text-amber-400" x-text="whatIfResult.projected"></div>
+                    </div>
                 </div>
             </div>
-        </div>
+        </template>
     </div>
 
-    <!-- Live Prop Bet Tracker -->
-    {% if live.prop_tracker %}
-    <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-        <h3 class="text-sm font-bold text-white mb-4">Live Prop Bet Tracker</h3>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="bg-gray-900/50 border border-gray-700/50 rounded-lg p-4 text-center">
-                <p class="text-xs text-gray-500 mb-1">Wides</p>
-                <p class="text-lg font-bold text-white">{{ live.prop_tracker.wides_actual|default(0) }} <span class="text-gray-600">/</span> <span class="text-gray-400">{{ live.prop_tracker.wides_predicted|default('-') }}</span></p>
-                <p class="text-xs text-gray-500">actual / predicted</p>
-            </div>
-            <div class="bg-gray-900/50 border border-gray-700/50 rounded-lg p-4 text-center">
-                <p class="text-xs text-gray-500 mb-1">Sixes</p>
-                <p class="text-lg font-bold text-white">{{ live.prop_tracker.sixes_actual|default(0) }} <span class="text-gray-600">/</span> <span class="text-gray-400">{{ live.prop_tracker.sixes_predicted|default('-') }}</span></p>
-                <p class="text-xs text-gray-500">actual / predicted</p>
-            </div>
-            <div class="bg-gray-900/50 border border-gray-700/50 rounded-lg p-4 text-center">
-                <p class="text-xs text-gray-500 mb-1">Fours</p>
-                <p class="text-lg font-bold text-white">{{ live.prop_tracker.fours_actual|default(0) }} <span class="text-gray-600">/</span> <span class="text-gray-400">{{ live.prop_tracker.fours_predicted|default('-') }}</span></p>
-                <p class="text-xs text-gray-500">actual / predicted</p>
-            </div>
-            <div class="bg-gray-900/50 border border-gray-700/50 rounded-lg p-4 text-center">
-                <p class="text-xs text-gray-500 mb-1">No-Balls</p>
-                <p class="text-lg font-bold text-white">{{ live.prop_tracker.noballs_actual|default(0) }} <span class="text-gray-600">/</span> <span class="text-gray-400">{{ live.prop_tracker.noballs_predicted|default('-') }}</span></p>
-                <p class="text-xs text-gray-500">actual / predicted</p>
-            </div>
-        </div>
+    {# Manual recalculate button (always visible) #}
+    <div class="mt-4 flex justify-center">
+        <form method="POST" action="{{ url_for('live_recalculate') }}">
+            <input type="hidden" name="match_id" value="{{ live.match_id }}">
+            <button type="submit" class="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-400 text-xs font-medium hover:bg-white/10 hover:text-white transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                Force Recalculate Probabilities
+            </button>
+        </form>
     </div>
-    {% endif %}
-
-    {% else %}
-    <!-- No live match -->
-    <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-12 text-center">
-        <svg class="w-16 h-16 text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728M9.172 15.828a5 5 0 010-7.072m5.656 0a5 5 0 010 7.072M12 12h.01"/></svg>
-        <h3 class="text-xl font-bold text-gray-400 mb-2">No Live Matches</h3>
-        <p class="text-sm text-gray-500">Check back during match time for live tracking and predictions.</p>
-        <a href="{{ url_for('dashboard') }}" class="inline-flex items-center gap-2 mt-4 text-sm text-emerald-400 hover:text-emerald-300">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-            Back to Dashboard
-        </a>
-    </div>
-    {% endif %}
 
 </div>
+
+{% else %}
+{# ===== NO LIVE MATCH ===== #}
+<div class="rounded-2xl border border-white/10 bg-white/5 p-12 text-center">
+    <div class="w-16 h-16 rounded-full bg-gray-800 mx-auto mb-4 flex items-center justify-center">
+        <svg class="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728M9.172 15.828a5 5 0 010-7.072m5.656 0a5 5 0 010 7.072M12 12h.01"/></svg>
+    </div>
+    <h3 class="text-lg font-bold text-white mb-1">No Live Match</h3>
+    <p class="text-sm text-gray-500 max-w-sm mx-auto">There is no live match at the moment. Check the schedule for upcoming fixtures.</p>
+    <a href="{{ url_for('tournament') }}" class="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold uppercase tracking-wider hover:bg-emerald-500/30 transition-all">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        View Schedule
+    </a>
+</div>
+{% endif %}
 {% endblock %}

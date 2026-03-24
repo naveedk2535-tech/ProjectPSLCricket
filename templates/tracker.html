@@ -1,126 +1,146 @@
 {% extends "base.html" %}
 
-{% block title %}Prediction Tracker{% endblock %}
-
+{% block title %}Tracker{% endblock %}
 {% block page_title %}Prediction Tracker{% endblock %}
-{% block breadcrumb %}
-<span class="text-gray-600">/</span>
-<span class="text-gray-400">Tracker</span>
-{% endblock %}
+{% block breadcrumb %}<span class="text-gray-600">/</span><span>Tracker</span>{% endblock %}
 
 {% block content %}
-<div class="space-y-6" x-data="{ activeTab: 'all' }">
+<div class="space-y-6" x-data="{ filterStatus: 'all' }">
 
-    <!-- Summary Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-            <p class="text-sm text-gray-400 mb-2">Top Pick Accuracy</p>
-            <p class="text-3xl font-bold text-white">{{ "%.1f"|format(tracker_summary.top_pick_accuracy|default(0)) }}%</p>
-            <p class="text-xs text-gray-500 mt-1">ROI: <span class="{% if tracker_summary.top_pick_roi|default(0) > 0 %}text-emerald-400{% else %}text-red-400{% endif %}">{{ "%+.1f"|format(tracker_summary.top_pick_roi|default(0)) }}%</span></p>
-        </div>
-        <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-            <p class="text-sm text-gray-400 mb-2">Value Bet Accuracy</p>
-            <p class="text-3xl font-bold text-white">{{ "%.1f"|format(tracker_summary.value_bet_accuracy|default(0)) }}%</p>
-            <p class="text-xs text-gray-500 mt-1">ROI: <span class="{% if tracker_summary.value_bet_roi|default(0) > 0 %}text-emerald-400{% else %}text-red-400{% endif %}">{{ "%+.1f"|format(tracker_summary.value_bet_roi|default(0)) }}%</span></p>
-        </div>
-        <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-            <p class="text-sm text-gray-400 mb-2">Current Streak</p>
-            <div class="flex items-center gap-2">
-                <p class="text-3xl font-bold {% if tracker_summary.streak_type|default('') == 'W' %}text-emerald-400{% elif tracker_summary.streak_type|default('') == 'L' %}text-red-400{% else %}text-gray-400{% endif %}">
-                    {{ tracker_summary.streak_count|default(0) }}
-                </p>
-                <span class="text-lg font-bold {% if tracker_summary.streak_type|default('') == 'W' %}text-emerald-400{% elif tracker_summary.streak_type|default('') == 'L' %}text-red-400{% else %}text-gray-400{% endif %}">
-                    {{ tracker_summary.streak_type|default('-') }}
+  <!-- Summary Cards -->
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+    <!-- Top Pick Accuracy -->
+    <div class="bg-white/5 border border-white/10 rounded-xl p-4">
+      <p class="text-[11px] uppercase tracking-wider text-gray-500 mb-1">Top Pick Accuracy</p>
+      <p class="text-2xl font-extrabold {% if tracker_summary.top_pick_accuracy >= 60 %}text-emerald-400{% elif tracker_summary.top_pick_accuracy >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">
+        {{ tracker_summary.top_pick_accuracy }}%
+      </p>
+      <div class="mt-2 h-1 bg-gray-800 rounded-full overflow-hidden">
+        <div class="h-full rounded-full {% if tracker_summary.top_pick_accuracy >= 60 %}bg-emerald-500{% elif tracker_summary.top_pick_accuracy >= 50 %}bg-amber-500{% else %}bg-red-500{% endif %}"
+          style="width: {{ tracker_summary.top_pick_accuracy }}%"></div>
+      </div>
+    </div>
+
+    <!-- Top Pick ROI -->
+    <div class="bg-white/5 border border-white/10 rounded-xl p-4">
+      <p class="text-[11px] uppercase tracking-wider text-gray-500 mb-1">Top Pick ROI</p>
+      <p class="text-2xl font-extrabold {% if tracker_summary.top_pick_roi > 0 %}text-emerald-400{% elif tracker_summary.top_pick_roi < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
+        {{ '%+.1f'|format(tracker_summary.top_pick_roi) }}
+      </p>
+    </div>
+
+    <!-- Value Bet Accuracy -->
+    <div class="bg-white/5 border border-white/10 rounded-xl p-4">
+      <p class="text-[11px] uppercase tracking-wider text-gray-500 mb-1">Value Bet Acc.</p>
+      <p class="text-2xl font-extrabold {% if tracker_summary.value_bet_accuracy >= 60 %}text-emerald-400{% elif tracker_summary.value_bet_accuracy >= 50 %}text-amber-400{% else %}text-gray-400{% endif %}">
+        {{ tracker_summary.value_bet_accuracy }}%
+      </p>
+    </div>
+
+    <!-- Streak -->
+    <div class="bg-white/5 border border-white/10 rounded-xl p-4">
+      <p class="text-[11px] uppercase tracking-wider text-gray-500 mb-1">Current Streak</p>
+      <div class="flex items-baseline gap-1.5">
+        <p class="text-2xl font-extrabold {% if tracker_summary.streak_type == 'W' %}text-emerald-400{% elif tracker_summary.streak_type == 'L' %}text-red-400{% else %}text-gray-400{% endif %}">
+          {{ tracker_summary.streak_count }}
+        </p>
+        <span class="text-sm font-bold {% if tracker_summary.streak_type == 'W' %}text-emerald-500{% elif tracker_summary.streak_type == 'L' %}text-red-500{% else %}text-gray-500{% endif %}">
+          {{ tracker_summary.streak_type }}
+        </span>
+      </div>
+    </div>
+
+    <!-- Counts -->
+    <div class="bg-white/5 border border-white/10 rounded-xl p-4">
+      <p class="text-[11px] uppercase tracking-wider text-gray-500 mb-1">Predictions</p>
+      <p class="text-2xl font-extrabold text-white">{{ tracker_summary.total }}</p>
+      <p class="text-[11px] text-gray-500 mt-0.5">{{ tracker_summary.settled }} settled / {{ tracker_summary.pending }} pending</p>
+    </div>
+  </div>
+
+  <!-- Predictions Table -->
+  <div class="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
+    <div class="px-5 py-4 border-b border-white/5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <h2 class="text-sm font-bold text-white">All Predictions</h2>
+      <div class="flex items-center gap-1.5">
+        <button @click="filterStatus = 'all'" :class="filterStatus === 'all' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'"
+          class="px-3 py-1 rounded-lg text-[11px] font-semibold uppercase tracking-wider transition-colors">All</button>
+        <button @click="filterStatus = 'settled'" :class="filterStatus === 'settled' ? 'bg-blue-500/15 text-blue-400' : 'text-gray-500 hover:text-gray-300'"
+          class="px-3 py-1 rounded-lg text-[11px] font-semibold uppercase tracking-wider transition-colors">Settled</button>
+        <button @click="filterStatus = 'pending'" :class="filterStatus === 'pending' ? 'bg-amber-500/15 text-amber-400' : 'text-gray-500 hover:text-gray-300'"
+          class="px-3 py-1 rounded-lg text-[11px] font-semibold uppercase tracking-wider transition-colors">Pending</button>
+      </div>
+    </div>
+
+    {% if predictions %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-white/5">
+            <th class="text-left px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Date</th>
+            <th class="text-left px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Match</th>
+            <th class="text-left px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Predicted</th>
+            <th class="text-right px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Prob</th>
+            <th class="text-left px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Actual</th>
+            <th class="text-center px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Result</th>
+            <th class="text-right px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">P&L</th>
+            <th class="text-center px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Status</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-white/5">
+          {% for p in predictions %}
+          <tr x-show="filterStatus === 'all' || filterStatus === '{{ p.status }}'" class="hover:bg-white/[0.02] transition-colors">
+            <td class="px-5 py-3 text-gray-400 whitespace-nowrap">{{ p.date }}</td>
+            <td class="px-5 py-3 text-white font-medium whitespace-nowrap">{{ p.team_a }} vs {{ p.team_b }}</td>
+            <td class="px-5 py-3 text-gray-300 whitespace-nowrap">{{ p.predicted_winner }}</td>
+            <td class="px-5 py-3 text-right text-gray-300">{{ '%.1f'|format(p.probability) }}%</td>
+            <td class="px-5 py-3 text-gray-300 whitespace-nowrap">{{ p.actual_winner or '-' }}</td>
+            <td class="px-5 py-3 text-center">
+              {% if p.status == 'settled' %}
+                {% if p.correct %}
+                  <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500/15">
+                    <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                  </span>
+                {% else %}
+                  <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-500/15">
+                    <svg class="w-3.5 h-3.5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/></svg>
+                  </span>
+                {% endif %}
+              {% else %}
+                <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-500/10">
+                  <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 </span>
-            </div>
-            <p class="text-xs text-gray-500 mt-1">consecutive {{ 'wins' if tracker_summary.streak_type|default('') == 'W' else 'losses' if tracker_summary.streak_type|default('') == 'L' else 'N/A' }}</p>
-        </div>
-        <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-            <p class="text-sm text-gray-400 mb-2">Total Tracked</p>
-            <p class="text-3xl font-bold text-white">{{ tracker_summary.total|default(0) }}</p>
-            <p class="text-xs text-gray-500 mt-1">{{ tracker_summary.settled|default(0) }} settled, {{ tracker_summary.pending|default(0) }} pending</p>
-        </div>
+              {% endif %}
+            </td>
+            <td class="px-5 py-3 text-right whitespace-nowrap">
+              {% if p.pnl is not none %}
+                <span class="font-semibold {% if p.pnl > 0 %}text-emerald-400{% elif p.pnl < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
+                  {{ '%+.1f'|format(p.pnl) }}
+                </span>
+              {% else %}
+                <span class="text-gray-600">--</span>
+              {% endif %}
+            </td>
+            <td class="px-5 py-3 text-center">
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold
+                {% if p.status == 'settled' %}bg-blue-500/10 text-blue-400
+                {% else %}bg-amber-500/10 text-amber-400{% endif %}">
+                <span class="w-1.5 h-1.5 rounded-full {% if p.status == 'settled' %}bg-blue-400{% else %}bg-amber-400{% endif %}"></span>
+                {{ p.status|capitalize }}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
-
-    <!-- Filter Tabs -->
-    <div class="flex items-center gap-1 bg-gray-800/50 border border-gray-700 rounded-xl p-1 w-fit">
-        <button @click="activeTab = 'all'" :class="activeTab === 'all' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'"
-                class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">All</button>
-        <button @click="activeTab = 'pending'" :class="activeTab === 'pending' ? 'bg-amber-500/20 text-amber-400' : 'text-gray-400 hover:text-white'"
-                class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">Pending</button>
-        <button @click="activeTab = 'settled'" :class="activeTab === 'settled' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'"
-                class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">Settled</button>
+    {% else %}
+    <div class="p-8 text-center">
+      <svg class="w-10 h-10 mx-auto text-gray-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      <p class="text-gray-500 text-sm">No predictions tracked yet.</p>
     </div>
-
-    <!-- Predictions Table -->
-    <div class="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
-        <h2 class="text-lg font-bold text-white mb-4">Tracked Predictions</h2>
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="text-left text-gray-500 border-b border-gray-700">
-                        <th class="pb-3 font-medium">Date</th>
-                        <th class="pb-3 font-medium">Match</th>
-                        <th class="pb-3 font-medium">Predicted Winner</th>
-                        <th class="pb-3 font-medium text-center">Probability</th>
-                        <th class="pb-3 font-medium">Actual Winner</th>
-                        <th class="pb-3 font-medium text-center">Correct</th>
-                        <th class="pb-3 font-medium text-right">P&amp;L</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-800">
-                    {% for pred in predictions|default([]) %}
-                    <tr class="hover:bg-gray-800/50"
-                        x-show="activeTab === 'all' || (activeTab === 'pending' && '{{ pred.status|default('pending') }}' === 'pending') || (activeTab === 'settled' && '{{ pred.status|default('pending') }}' === 'settled')">
-                        <td class="py-3 text-gray-500 text-xs">{{ pred.date }}</td>
-                        <td class="py-3">
-                            <span class="text-white font-medium">{{ pred.team_a }}</span>
-                            <span class="text-gray-600 mx-1">vs</span>
-                            <span class="text-white font-medium">{{ pred.team_b }}</span>
-                        </td>
-                        <td class="py-3">
-                            <span class="text-emerald-400 font-semibold">{{ pred.predicted_winner }}</span>
-                        </td>
-                        <td class="py-3 text-center">
-                            <div class="inline-flex items-center gap-2">
-                                <div class="w-16 h-1.5 bg-gray-700 rounded-full overflow-hidden">
-                                    <div class="h-full bg-emerald-500 rounded-full" style="width: {{ pred.probability|default(50) }}%"></div>
-                                </div>
-                                <span class="text-xs text-gray-400 font-mono">{{ "%.0f"|format(pred.probability|default(50)) }}%</span>
-                            </div>
-                        </td>
-                        <td class="py-3 text-gray-300">
-                            {% if pred.actual_winner %}
-                            {{ pred.actual_winner }}
-                            {% else %}
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400">Pending</span>
-                            {% endif %}
-                        </td>
-                        <td class="py-3 text-center">
-                            {% if pred.actual_winner %}
-                                {% if pred.correct %}
-                                <span class="text-emerald-400 font-bold text-lg">&#10003;</span>
-                                {% else %}
-                                <span class="text-red-400 font-bold text-lg">&#10007;</span>
-                                {% endif %}
-                            {% else %}
-                            <span class="text-gray-600">-</span>
-                            {% endif %}
-                        </td>
-                        <td class="py-3 text-right font-mono font-semibold
-                            {% if pred.pnl|default(0) > 0 %}text-emerald-400{% elif pred.pnl|default(0) < 0 %}text-red-400{% else %}text-gray-500{% endif %}">
-                            {% if pred.pnl is defined and pred.pnl is not none %}{{ "%+.0f"|format(pred.pnl) }}{% else %}-{% endif %}
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="7" class="py-8 text-center text-gray-500">No predictions tracked yet</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
+    {% endif %}
+  </div>
 
 </div>
 {% endblock %}

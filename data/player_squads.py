@@ -1,12 +1,14 @@
 """
-PSL Player Stats — Extracted from CricSheet ball-by-ball CSV data.
+Player Stats — Extracted from CricSheet ball-by-ball CSV data.
 
-Parses all PSL ball-by-ball CSVs from data/cache/cricsheet_psl/ to build
+Parses all ball-by-ball CSVs from data/cache/cricsheet_{league}/ to build
 real player profiles with batting, bowling, and phase-specific stats.
+Supports both PSL and IPL leagues.
 
 Usage:
     from data.player_squads import seed_player_stats, get_team_players
-    seed_player_stats()  # populates player_stats table from CSV data
+    seed_player_stats()            # PSL (default)
+    seed_player_stats(league="ipl")  # IPL
 """
 
 import glob
@@ -22,8 +24,8 @@ from data.team_names import standardise, standardise_venue
 # Constants
 # ---------------------------------------------------------------------------
 
-CRICSHEET_DIR = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "cache", "cricsheet_psl"
+CACHE_BASE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "cache"
 )
 
 MIN_INNINGS = 3  # minimum innings to include a player
@@ -41,26 +43,32 @@ NON_BOWLER_WICKET_TYPES = frozenset({
 })
 
 
+def _cricsheet_dir(league="psl"):
+    """Return the CricSheet CSV directory for a given league."""
+    return os.path.join(CACHE_BASE, f"cricsheet_{league}")
+
+
 # ---------------------------------------------------------------------------
-# Internal: load all CSV data once
+# Internal: load all CSV data once (per league)
 # ---------------------------------------------------------------------------
 
-_cached_all_data = None
+_cached_all_data = {}
 
 
-def _load_all_csvs():
-    """Load and concatenate all ball-by-ball CSVs. Cached after first call."""
+def _load_all_csvs(league="psl"):
+    """Load and concatenate all ball-by-ball CSVs for a league. Cached after first call."""
     global _cached_all_data
-    if _cached_all_data is not None:
-        return _cached_all_data
+    if league in _cached_all_data and _cached_all_data[league] is not None:
+        return _cached_all_data[league]
 
-    csv_pattern = os.path.join(CRICSHEET_DIR, "*.csv")
+    cricsheet_dir = _cricsheet_dir(league)
+    csv_pattern = os.path.join(cricsheet_dir, "*.csv")
     all_files = sorted(glob.glob(csv_pattern))
     data_files = [f for f in all_files if "_info" not in os.path.basename(f)]
 
-    print(f"[player_squads] Found {len(data_files)} ball-by-ball CSV files")
+    print(f"[player_squads] Found {len(data_files)} {league.upper()} ball-by-ball CSV files")
     if not data_files:
-        print("[player_squads] WARNING: No CSV files found in", CRICSHEET_DIR)
+        print(f"[player_squads] WARNING: No CSV files found in {cricsheet_dir}")
         return None
 
     frames = []
@@ -98,7 +106,7 @@ def _load_all_csvs():
         & ~all_data["wicket_type"].isin(NON_BOWLER_WICKET_TYPES)
     )
 
-    _cached_all_data = all_data
+    _cached_all_data[league] = all_data
     return all_data
 
 
@@ -106,20 +114,20 @@ def _load_all_csvs():
 # 1. Extract player stats from CricSheet CSVs
 # ---------------------------------------------------------------------------
 
-def extract_player_stats_from_cricsheet():
+def extract_player_stats_from_cricsheet(league="psl"):
     """
-    Parse ALL ball-by-ball CSVs and build player profiles.
+    Parse ALL ball-by-ball CSVs for a league and build player profiles.
 
     Returns dict keyed by player name with full batting/bowling/phase stats.
     """
-    all_data = _load_all_csvs()
+    all_data = _load_all_csvs(league)
     if all_data is None:
         return {}
 
     players = {}
 
     # ========== BATTING STATS ==========
-    print("[player_squads] Computing batting stats ...")
+    print(f"[player_squads] Computing {league.upper()} batting stats ...")
 
     # Filter to deliveries faced by batsman (exclude wides)
     bat_df = all_data[~all_data["is_wide"]].copy()
@@ -180,7 +188,7 @@ def extract_player_stats_from_cricsheet():
         bat_stats[col] = bat_stats[col].fillna(0).astype(int)
 
     # --- Dismissals ---
-    print("[player_squads] Computing dismissals ...")
+    print(f"[player_squads] Computing {league.upper()} dismissals ...")
     dismissed_df = all_data[all_data["player_dismissed"].notna()]
     dismissals = dismissed_df.groupby("player_dismissed").size().reset_index(name="dismissals")
     dismissals.columns = ["striker", "dismissals"]
@@ -188,7 +196,7 @@ def extract_player_stats_from_cricsheet():
     bat_stats["dismissals"] = bat_stats["dismissals"].fillna(0).astype(int)
 
     # ========== BOWLING STATS ==========
-    print("[player_squads] Computing bowling stats ...")
+    print(f"[player_squads] Computing {league.upper()} bowling stats ...")
 
     # Legal deliveries for bowling (exclude wides and noballs)
     legal_bowl = all_data[~all_data["is_wide"] & ~all_data["is_noball"]]
@@ -252,7 +260,7 @@ def extract_player_stats_from_cricsheet():
             bowl_stats[col] = bowl_stats[col].fillna(0).astype(int)
 
     # ========== MERGE & BUILD PLAYER DICT ==========
-    print("[player_squads] Building player profiles ...")
+    print(f"[player_squads] Building {league.upper()} player profiles ...")
 
     # Index bat_stats by striker name
     bat_lookup = {}
@@ -366,7 +374,7 @@ def extract_player_stats_from_cricsheet():
             "death_economy": round(death_economy, 2),
         }
 
-    print(f"[player_squads] Extracted stats for {len(players)} players (min {MIN_INNINGS} innings)")
+    print(f"[player_squads] Extracted {league.upper()} stats for {len(players)} players (min {MIN_INNINGS} innings)")
     return players
 
 
@@ -454,14 +462,14 @@ def calculate_player_impact(player_dict):
 # 3. Seed player stats to DB
 # ---------------------------------------------------------------------------
 
-def seed_player_stats():
+def seed_player_stats(league="psl"):
     """
-    Extract stats from CricSheet CSVs, calculate impact scores,
+    Extract stats from CricSheet CSVs for the given league, calculate impact scores,
     and upsert ALL players into player_stats table.
     """
-    player_data = extract_player_stats_from_cricsheet()
+    player_data = extract_player_stats_from_cricsheet(league)
     if not player_data:
-        print("[player_squads] No player data extracted, aborting seed.")
+        print(f"[player_squads] No {league.upper()} player data extracted, aborting seed.")
         return
 
     conn = get_connection()
@@ -475,7 +483,7 @@ def seed_player_stats():
         try:
             conn.execute("""
                 INSERT INTO player_stats (
-                    name, team, role,
+                    name, team, league, role,
                     batting_avg, batting_sr, bowling_avg, bowling_economy, bowling_sr,
                     matches_played, innings_batted, innings_bowled,
                     runs_scored, wickets_taken, fifties, hundreds,
@@ -483,8 +491,8 @@ def seed_player_stats():
                     powerplay_economy, death_economy,
                     dot_ball_pct, boundary_pct,
                     impact_score, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(name, team) DO UPDATE SET
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(name, team, league) DO UPDATE SET
                     role = excluded.role,
                     batting_avg = excluded.batting_avg,
                     batting_sr = excluded.batting_sr,
@@ -508,7 +516,7 @@ def seed_player_stats():
                     impact_score = excluded.impact_score,
                     updated_at = excluded.updated_at
             """, (
-                name, team, p["role"],
+                name, team, league, p["role"],
                 p["batting_avg"], p["batting_sr"],
                 p["bowling_avg"] if p["bowling_avg"] > 0 else None,
                 p["bowling_economy"] if p["bowling_economy"] > 0 else None,
@@ -529,7 +537,7 @@ def seed_player_stats():
             print(f"  [WARN] Failed to upsert {name}: {e}")
 
     conn.commit()
-    print(f"[player_squads] Seeded {count} players into player_stats table")
+    print(f"[player_squads] Seeded {count} {league.upper()} players into player_stats table")
     return count
 
 
@@ -537,13 +545,13 @@ def seed_player_stats():
 # 4. Get team players from DB
 # ---------------------------------------------------------------------------
 
-def get_team_players(team_name):
+def get_team_players(team_name, league="psl"):
     """Fetch all players for a team from the player_stats table."""
     team = standardise(team_name)
     conn = get_connection()
     rows = conn.execute(
-        "SELECT * FROM player_stats WHERE team = ? ORDER BY impact_score DESC",
-        (team,)
+        "SELECT * FROM player_stats WHERE team = ? AND league = ? ORDER BY impact_score DESC",
+        (team, league),
     ).fetchall()
     return [dict(r) for r in rows]
 
@@ -552,12 +560,12 @@ def get_team_players(team_name):
 # 5. Player venue stats (from CSV)
 # ---------------------------------------------------------------------------
 
-def get_player_venue_stats(player_name, venue):
+def get_player_venue_stats(player_name, venue, league="psl"):
     """
     Extract player performance at a specific venue from CSV data.
     Returns dict with batting_avg, batting_sr, bowling_economy at that venue.
     """
-    all_data = _load_all_csvs()
+    all_data = _load_all_csvs(league)
     if all_data is None:
         return {"batting_avg": 0, "batting_sr": 0, "bowling_economy": 0, "matches": 0}
 
@@ -604,12 +612,12 @@ def get_player_venue_stats(player_name, venue):
 # 6. Player vs team stats (from CSV)
 # ---------------------------------------------------------------------------
 
-def get_player_vs_team(player_name, opponent_team):
+def get_player_vs_team(player_name, opponent_team, league="psl"):
     """
     Extract player performance against a specific team from CSV data.
     Returns dict with batting_avg, batting_sr, bowling_economy vs that team.
     """
-    all_data = _load_all_csvs()
+    all_data = _load_all_csvs(league)
     if all_data is None:
         return {"batting_avg": 0, "batting_sr": 0, "bowling_economy": 0, "wickets": 0, "matches": 0}
 
@@ -666,11 +674,12 @@ def get_player_vs_team(player_name, opponent_team):
 # Convenience aliases (backward compat)
 # ---------------------------------------------------------------------------
 
-def get_squads():
+def get_squads(league="psl"):
     """Return all players grouped by team from DB."""
     conn = get_connection()
     rows = conn.execute(
-        "SELECT * FROM player_stats ORDER BY team, impact_score DESC"
+        "SELECT * FROM player_stats WHERE league = ? ORDER BY team, impact_score DESC",
+        (league,),
     ).fetchall()
     squads = defaultdict(list)
     for r in rows:
@@ -683,13 +692,18 @@ def get_squads():
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    import sys
+
+    league = sys.argv[1] if len(sys.argv) > 1 else "psl"
+
     print("=" * 60)
-    print("PSL Player Stats — CricSheet Extraction")
+    print(f"{league.upper()} Player Stats — CricSheet Extraction")
     print("=" * 60)
 
-    data = seed_player_stats()
-
+    data = extract_player_stats_from_cricsheet(league)
     if data:
+        seed_player_stats(league)
+
         # Print top 20 by impact
         scored = []
         for name, p in data.items():
@@ -710,6 +724,6 @@ if __name__ == "__main__":
             print(f"{name:<25} {team:<22} {role:<15} {impact:>7.1f} {mat:>4} "
                   f"{ba:>7.1f} {bsr:>7.1f} {econ_str:>6} {wkt:>4}")
 
-        print(f"\nTotal players seeded: {len(data)}")
+        print(f"\nTotal players extracted: {len(data)}")
     else:
         print("No data extracted.")

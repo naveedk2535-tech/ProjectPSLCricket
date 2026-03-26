@@ -4,6 +4,7 @@ and contextual factors (venue conditions, weather/dew).
 
 Aggregates individual player contributions to produce team-level strength metrics
 that feed into the ensemble prediction model.
+Supports both PSL and IPL leagues via the `league` parameter.
 """
 
 import math
@@ -26,24 +27,24 @@ def _safe(val, default=0.0):
         return default
 
 
-def _get_venue_stats(venue):
-    """Fetch venue_stats row for a venue. Returns dict or None."""
+def _get_venue_stats(venue, league="psl"):
+    """Fetch venue_stats row for a venue and league. Returns dict or None."""
     if not venue:
         return None
     row = db.fetch_one(
         "SELECT pace_wicket_pct, spin_wicket_pct, avg_first_innings, "
-        "avg_second_innings, dew_impact_score FROM venue_stats WHERE venue = ?",
-        [venue],
+        "avg_second_innings, dew_impact_score FROM venue_stats WHERE venue = ? AND league = ?",
+        [venue, league],
     )
     return row
 
 
-def _get_weather(venue, match_date):
-    """Fetch weather row for venue/date. Returns dict or None."""
+def _get_weather(venue, match_date, league="psl"):
+    """Fetch weather row for venue/date and league. Returns dict or None."""
     if not venue:
         return None
-    params = [venue]
-    sql = "SELECT temperature, humidity, dew_point, dew_score, heavy_dew FROM weather WHERE venue = ?"
+    params = [venue, league]
+    sql = "SELECT temperature, humidity, dew_point, dew_score, heavy_dew FROM weather WHERE venue = ? AND league = ?"
     if match_date:
         sql += " AND match_date = ?"
         params.append(str(match_date))
@@ -69,7 +70,7 @@ def _spin_bowling_quality(player):
 # 1. get_team_player_strength
 # ---------------------------------------------------------------------------
 
-def get_team_player_strength(team):
+def get_team_player_strength(team, league="psl"):
     """
     Fetch all available players for a team from player_stats and calculate
     composite batting, bowling, and overall strength metrics.
@@ -82,16 +83,16 @@ def get_team_player_strength(team):
     team = standardise(team)
 
     players = db.fetch_all(
-        "SELECT * FROM player_stats WHERE team = ? AND availability = 'available' "
+        "SELECT * FROM player_stats WHERE team = ? AND league = ? AND availability = 'available' "
         "ORDER BY impact_score DESC",
-        [team],
+        [team, league],
     )
 
     if not players:
         # Fallback: try without availability filter
         players = db.fetch_all(
-            "SELECT * FROM player_stats WHERE team = ? ORDER BY impact_score DESC",
-            [team],
+            "SELECT * FROM player_stats WHERE team = ? AND league = ? ORDER BY impact_score DESC",
+            [team, league],
         )
 
     if not players:
@@ -255,7 +256,7 @@ def get_team_player_strength(team):
 # 2. predict  — standard model interface
 # ---------------------------------------------------------------------------
 
-def predict(team_a, team_b, venue=None, match_date=None):
+def predict(team_a, team_b, venue=None, match_date=None, league="psl"):
     """
     Predict match outcome based on player-level strength comparison,
     adjusted for venue conditions and weather/dew.
@@ -266,8 +267,8 @@ def predict(team_a, team_b, venue=None, match_date=None):
     team_a = standardise(team_a)
     team_b = standardise(team_b)
 
-    strength_a = get_team_player_strength(team_a)
-    strength_b = get_team_player_strength(team_b)
+    strength_a = get_team_player_strength(team_a, league=league)
+    strength_b = get_team_player_strength(team_b, league=league)
 
     # Start with raw scores
     bat_a = strength_a["batting_strength"]
@@ -282,7 +283,7 @@ def predict(team_a, team_b, venue=None, match_date=None):
     venue_adjustment_a = 0.0
     venue_adjustment_b = 0.0
     if venue:
-        venue_info = _get_venue_stats(venue)
+        venue_info = _get_venue_stats(venue, league=league)
 
     if venue_info:
         pace_pct = _safe(venue_info.get("pace_wicket_pct"), 50)
@@ -304,7 +305,7 @@ def predict(team_a, team_b, venue=None, match_date=None):
     dew_boost_a = 0.0
     dew_boost_b = 0.0
     if venue:
-        weather_info = _get_weather(venue, match_date)
+        weather_info = _get_weather(venue, match_date, league=league)
 
     if weather_info:
         dew = _safe(weather_info.get("dew_score"), 0)
@@ -341,12 +342,12 @@ def predict(team_a, team_b, venue=None, match_date=None):
 
     # ── Confidence based on data availability ────────────────────────────
     players_a = db.fetch_all(
-        "SELECT COUNT(*) as cnt FROM player_stats WHERE team = ? AND impact_score IS NOT NULL",
-        [team_a],
+        "SELECT COUNT(*) as cnt FROM player_stats WHERE team = ? AND league = ? AND impact_score IS NOT NULL",
+        [team_a, league],
     )
     players_b = db.fetch_all(
-        "SELECT COUNT(*) as cnt FROM player_stats WHERE team = ? AND impact_score IS NOT NULL",
-        [team_b],
+        "SELECT COUNT(*) as cnt FROM player_stats WHERE team = ? AND league = ? AND impact_score IS NOT NULL",
+        [team_b, league],
     )
     count_a = players_a[0]["cnt"] if players_a else 0
     count_b = players_b[0]["cnt"] if players_b else 0
@@ -359,6 +360,7 @@ def predict(team_a, team_b, venue=None, match_date=None):
         "confidence": round(confidence, 3),
         "details": {
             "model": "player_strength",
+            "league": league,
             "team_a_batting_strength": strength_a["batting_strength"],
             "team_a_bowling_strength": strength_a["bowling_strength"],
             "team_a_star_impact": strength_a["star_player_impact"],
@@ -379,7 +381,7 @@ def predict(team_a, team_b, venue=None, match_date=None):
 # 3. get_matchup_analysis  — detailed head-to-head comparison
 # ---------------------------------------------------------------------------
 
-def get_matchup_analysis(team_a, team_b, venue=None):
+def get_matchup_analysis(team_a, team_b, venue=None, league="psl"):
     """
     Return a detailed head-to-head matchup analysis comparing player-level
     batting, bowling, and all-rounder metrics for both teams, including
@@ -388,8 +390,8 @@ def get_matchup_analysis(team_a, team_b, venue=None):
     team_a = standardise(team_a)
     team_b = standardise(team_b)
 
-    strength_a = get_team_player_strength(team_a)
-    strength_b = get_team_player_strength(team_b)
+    strength_a = get_team_player_strength(team_a, league=league)
+    strength_b = get_team_player_strength(team_b, league=league)
 
     # ── Batting comparison ───────────────────────────────────────────────
     batting_comparison = {
@@ -408,8 +410,8 @@ def get_matchup_analysis(team_a, team_b, venue=None):
         row = db.fetch_one(
             "SELECT AVG(batting_avg) as avg_bat, AVG(batting_sr) as avg_sr, "
             "AVG(boundary_pct) as avg_boundary "
-            "FROM player_stats WHERE team = ? AND batting_avg IS NOT NULL",
-            [team],
+            "FROM player_stats WHERE team = ? AND league = ? AND batting_avg IS NOT NULL",
+            [team, league],
         )
         if row:
             batting_comparison[label]["avg_batting_avg"] = round(_safe(row.get("avg_bat")), 2)
@@ -433,8 +435,8 @@ def get_matchup_analysis(team_a, team_b, venue=None):
         row = db.fetch_one(
             "SELECT AVG(bowling_avg) as avg_bowl_avg, AVG(bowling_economy) as avg_econ, "
             "AVG(dot_ball_pct) as avg_dot "
-            "FROM player_stats WHERE team = ? AND bowling_avg IS NOT NULL AND bowling_avg > 0",
-            [team],
+            "FROM player_stats WHERE team = ? AND league = ? AND bowling_avg IS NOT NULL AND bowling_avg > 0",
+            [team, league],
         )
         if row:
             bowling_comparison[label]["avg_bowling_avg"] = round(_safe(row.get("avg_bowl_avg")), 2)
@@ -447,8 +449,8 @@ def get_matchup_analysis(team_a, team_b, venue=None):
         rows = db.fetch_all(
             "SELECT name, role, impact_score, batting_avg, batting_sr, "
             "bowling_avg, bowling_economy, boundary_pct, dot_ball_pct "
-            "FROM player_stats WHERE team = ? ORDER BY impact_score DESC LIMIT 5",
-            [team],
+            "FROM player_stats WHERE team = ? AND league = ? ORDER BY impact_score DESC LIMIT 5",
+            [team, league],
         )
         stars = []
         for r in (rows or []):
@@ -488,7 +490,7 @@ def get_matchup_analysis(team_a, team_b, venue=None):
     # ── Venue matchup: which team's composition suits the venue ─────────
     venue_matchup = {"venue": venue, "advantage": None, "reason": "No venue data"}
     if venue:
-        venue_info = _get_venue_stats(venue)
+        venue_info = _get_venue_stats(venue, league=league)
         if venue_info:
             pace_pct = _safe(venue_info.get("pace_wicket_pct"), 50)
             spin_pct = _safe(venue_info.get("spin_wicket_pct"), 50)
@@ -537,6 +539,7 @@ def get_matchup_analysis(team_a, team_b, venue=None):
     return {
         "team_a": team_a,
         "team_b": team_b,
+        "league": league,
         "batting": batting_comparison,
         "bowling": bowling_comparison,
         "key_players": star_players,
@@ -550,7 +553,7 @@ def get_matchup_analysis(team_a, team_b, venue=None):
 # 4. get_player_detail_cards  — structured data for match detail display
 # ---------------------------------------------------------------------------
 
-def get_player_detail_cards(team_a, team_b):
+def get_player_detail_cards(team_a, team_b, league="psl"):
     """
     Return structured player card data for the match detail page.
 
@@ -568,8 +571,8 @@ def get_player_detail_cards(team_a, team_b):
             "bowling_avg, bowling_economy, matches_played, runs_scored, "
             "wickets_taken, fifties, hundreds, boundary_pct, dot_ball_pct, "
             "powerplay_sr, death_economy, availability "
-            "FROM player_stats WHERE team = ? ORDER BY impact_score DESC",
-            [team],
+            "FROM player_stats WHERE team = ? AND league = ? ORDER BY impact_score DESC",
+            [team, league],
         )
 
         cards = []

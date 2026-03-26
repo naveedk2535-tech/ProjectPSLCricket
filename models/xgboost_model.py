@@ -12,7 +12,6 @@ from datetime import datetime, timedelta
 import config
 from database import db
 
-MODEL_PATH = os.path.join(config.CACHE_DIR, "xgboost_model.pkl")
 FEATURE_IMPORTANCE_PATH = os.path.join(config.CACHE_DIR, "feature_importance.json")
 
 FEATURE_NAMES = [
@@ -32,13 +31,23 @@ FEATURE_NAMES = [
 ]
 
 
-def extract_features(team_a, team_b, venue=None, match_date=None):
+def _model_path(league="psl"):
+    """Return league-specific model path."""
+    return os.path.join(config.CACHE_DIR, f"xgboost_model_{league}.pkl")
+
+
+def _feature_importance_path(league="psl"):
+    """Return league-specific feature importance path."""
+    return os.path.join(config.CACHE_DIR, f"feature_importance_{league}.json")
+
+
+def extract_features(team_a, team_b, venue=None, match_date=None, league="psl"):
     """Extract 50+ features for a match prediction."""
     features = {}
 
     # Team ratings
-    r_a = db.fetch_one("SELECT * FROM team_ratings WHERE team = ?", [team_a])
-    r_b = db.fetch_one("SELECT * FROM team_ratings WHERE team = ?", [team_b])
+    r_a = db.fetch_one("SELECT * FROM team_ratings WHERE team = ? AND league = ?", [team_a, league])
+    r_b = db.fetch_one("SELECT * FROM team_ratings WHERE team = ? AND league = ?", [team_b, league])
 
     default_rating = {
         "elo": 1500, "batting_avg": 160, "bowling_avg": 160, "batting_sr": 130,
@@ -87,8 +96,8 @@ def extract_features(team_a, team_b, venue=None, match_date=None):
 
     # H2H
     h2h = db.fetch_one(
-        "SELECT * FROM head_to_head WHERE (team_a = ? AND team_b = ?) OR (team_a = ? AND team_b = ?)",
-        [team_a, team_b, team_b, team_a]
+        "SELECT * FROM head_to_head WHERE ((team_a = ? AND team_b = ?) OR (team_a = ? AND team_b = ?)) AND league = ?",
+        [team_a, team_b, team_b, team_a, league]
     )
     if h2h and h2h["matches_played"] > 0:
         if h2h["team_a"] == team_a:
@@ -99,7 +108,7 @@ def extract_features(team_a, team_b, venue=None, match_date=None):
         features["h2h_win_rate_a"] = 0.5
 
     # Venue
-    v_stats = db.fetch_one("SELECT * FROM venue_stats WHERE venue = ?", [venue]) if venue else None
+    v_stats = db.fetch_one("SELECT * FROM venue_stats WHERE venue = ? AND league = ?", [venue, league]) if venue else None
     if v_stats:
         features["venue_avg_first"] = v_stats["avg_first_innings"] or 170
         features["venue_chase_win_pct"] = v_stats["chase_win_pct"] or 50
@@ -110,8 +119,8 @@ def extract_features(team_a, team_b, venue=None, match_date=None):
         features["venue_pace_pct"] = 50
 
     # Days rest
-    features["days_rest_a"] = _get_days_rest(team_a, match_date)
-    features["days_rest_b"] = _get_days_rest(team_b, match_date)
+    features["days_rest_a"] = _get_days_rest(team_a, match_date, league=league)
+    features["days_rest_b"] = _get_days_rest(team_b, match_date, league=league)
 
     # Weather
     weather = db.fetch_one(
@@ -125,15 +134,15 @@ def extract_features(team_a, team_b, venue=None, match_date=None):
 
     # Odds
     odds = db.fetch_one(
-        "SELECT * FROM odds WHERE team_a = ? AND team_b = ? AND match_date = ? ORDER BY fetched_at DESC LIMIT 1",
-        [team_a, team_b, match_date]
+        "SELECT * FROM odds WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ? ORDER BY fetched_at DESC LIMIT 1",
+        [team_a, team_b, match_date, league]
     ) if match_date else None
     features["implied_prob_a"] = odds["implied_prob_a"] if odds else 0.5
 
     # Match context
     fixture = db.fetch_one(
-        "SELECT * FROM fixtures WHERE team_a = ? AND team_b = ? AND match_date = ?",
-        [team_a, team_b, match_date]
+        "SELECT * FROM fixtures WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ?",
+        [team_a, team_b, match_date, league]
     ) if match_date else None
     features["match_number"] = fixture["match_number"] if fixture and fixture.get("match_number") else 20
     features["is_playoff"] = 1 if fixture and fixture.get("stage") in ("qualifier", "eliminator", "final") else 0
@@ -145,16 +154,16 @@ def extract_features(team_a, team_b, venue=None, match_date=None):
     return features
 
 
-def _get_days_rest(team, match_date):
+def _get_days_rest(team, match_date, league="psl"):
     """Calculate days since team's last match."""
     if not match_date:
         return 3  # Default
 
     last = db.fetch_one(
         """SELECT match_date FROM matches
-           WHERE (team_a = ? OR team_b = ?) AND match_date < ?
+           WHERE (team_a = ? OR team_b = ?) AND match_date < ? AND league = ?
            ORDER BY match_date DESC LIMIT 1""",
-        [team, team, match_date]
+        [team, team, match_date, league]
     )
     if last:
         try:
@@ -166,7 +175,7 @@ def _get_days_rest(team, match_date):
     return 5  # Default if no history
 
 
-def train(retrain=False):
+def train(retrain=False, league="psl"):
     """Train XGBoost model on historical match data."""
     try:
         from xgboost import XGBClassifier
@@ -176,8 +185,12 @@ def train(retrain=False):
         print("[XGBoost] Required packages not installed")
         return None
 
+    model_path = _model_path(league)
+    fi_path = _feature_importance_path(league)
+
     matches = db.fetch_all(
-        "SELECT * FROM matches WHERE winner IS NOT NULL ORDER BY match_date"
+        "SELECT * FROM matches WHERE winner IS NOT NULL AND league = ? ORDER BY match_date",
+        [league]
     )
 
     if len(matches) < config.BACKTEST_SETTINGS["min_matches_to_train"]:
@@ -189,7 +202,7 @@ def train(retrain=False):
     y_list = []
 
     for m in matches:
-        features = extract_features(m["team_a"], m["team_b"], m.get("venue"), m["match_date"])
+        features = extract_features(m["team_a"], m["team_b"], m.get("venue"), m["match_date"], league=league)
         feature_vector = [features.get(f, 0) for f in FEATURE_NAMES]
         X_list.append(feature_vector)
         y_list.append(1 if m["winner"] == m["team_a"] else 0)
@@ -226,9 +239,9 @@ def train(retrain=False):
     print(f"[XGBoost] Training Brier Score: {brier:.4f}")
 
     # Check if better than existing model
-    if not retrain and os.path.exists(MODEL_PATH):
+    if not retrain and os.path.exists(model_path):
         try:
-            old_model = pickle.load(open(MODEL_PATH, "rb"))
+            old_model = pickle.load(open(model_path, "rb"))
             old_probs = old_model.predict_proba(X)[:, 1]
             old_brier = brier_score_loss(y, old_probs)
             if brier >= old_brier - config.BACKTEST_SETTINGS["min_brier_improvement"]:
@@ -238,31 +251,34 @@ def train(retrain=False):
             pass
 
     # Save model
-    os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
-    with open(MODEL_PATH, "wb") as f:
+    os.makedirs(os.path.dirname(model_path), exist_ok=True)
+    with open(model_path, "wb") as f:
         pickle.dump(model, f)
 
     # Save feature importance
     import json
     importance = dict(zip(FEATURE_NAMES, model.feature_importances_.tolist()))
-    with open(FEATURE_IMPORTANCE_PATH, "w") as f:
+    with open(fi_path, "w") as f:
         json.dump(importance, f, indent=2)
 
-    print(f"[XGBoost] Model saved. Features: {len(FEATURE_NAMES)}, Brier: {brier:.4f}")
+    print(f"[XGBoost] Model saved ({league}). Features: {len(FEATURE_NAMES)}, Brier: {brier:.4f}")
     return model
 
 
-def predict(team_a, team_b, venue=None, match_date=None):
+def predict(team_a, team_b, venue=None, match_date=None, league="psl"):
     """Predict match outcome using trained XGBoost model."""
-    if not os.path.exists(MODEL_PATH):
+    model_path = _model_path(league)
+    fi_path = _feature_importance_path(league)
+
+    if not os.path.exists(model_path):
         return None
 
     try:
-        model = pickle.load(open(MODEL_PATH, "rb"))
+        model = pickle.load(open(model_path, "rb"))
     except Exception:
         return None
 
-    features = extract_features(team_a, team_b, venue, match_date)
+    features = extract_features(team_a, team_b, venue, match_date, league=league)
     feature_vector = np.array([[features.get(f, 0) for f in FEATURE_NAMES]])
     feature_vector = np.nan_to_num(feature_vector, nan=0.0)
 
@@ -274,9 +290,9 @@ def predict(team_a, team_b, venue=None, match_date=None):
     # Feature importance for this prediction
     import json
     top_features = {}
-    if os.path.exists(FEATURE_IMPORTANCE_PATH):
+    if os.path.exists(fi_path):
         try:
-            with open(FEATURE_IMPORTANCE_PATH) as f:
+            with open(fi_path) as f:
                 importance = json.load(f)
             sorted_imp = sorted(importance.items(), key=lambda x: x[1], reverse=True)[:10]
             top_features = {k: round(v, 4) for k, v in sorted_imp}

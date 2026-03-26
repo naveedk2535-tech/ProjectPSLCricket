@@ -146,9 +146,11 @@ def inject_league_and_refresh():
         )
     except Exception:
         pass
+    teams_config = config.TEAMS if league == "psl" else config.IPL_TEAMS
     return {
         "current_league": league,
         "league_config": config.LEAGUES.get(league, config.LEAGUES["psl"]),
+        "teams_config": teams_config,
         "data_refresh_log": refresh_log,
     }
 
@@ -227,8 +229,10 @@ def _current_league():
 @login_required
 def dashboard():
     """Command centre — upcoming fixtures, live matches, recent results, value bets."""
+    league = _current_league()
     raw_fixtures = db.fetch_all(
-        "SELECT * FROM fixtures WHERE status = 'SCHEDULED' ORDER BY match_date ASC LIMIT 7"
+        "SELECT * FROM fixtures WHERE status = 'SCHEDULED' AND league = ? ORDER BY match_date ASC LIMIT 7",
+        [league]
     )
 
     # Enrich fixtures with prediction data for template
@@ -236,11 +240,11 @@ def dashboard():
     predictions = {}
     for f in raw_fixtures:
         pred = db.fetch_one(
-            "SELECT * FROM predictions WHERE team_a = ? AND team_b = ? AND match_date = ?",
-            [f["team_a"], f["team_b"], f["match_date"]]
+            "SELECT * FROM predictions WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ?",
+            [f["team_a"], f["team_b"], f["match_date"], league]
         )
         if not pred:
-            pred = db.fetch_one("SELECT * FROM predictions WHERE fixture_id = ?", [f["id"]])
+            pred = db.fetch_one("SELECT * FROM predictions WHERE fixture_id = ? AND league = ?", [f["id"], league])
 
         match_data = dict(f)
         if pred:
@@ -259,15 +263,16 @@ def dashboard():
 
         # Check if this match has a value bet
         vb = db.fetch_one(
-            "SELECT id FROM value_bets WHERE team_a = ? AND team_b = ? AND match_date = ? AND status = 'pending' LIMIT 1",
-            [f["team_a"], f["team_b"], f["match_date"]],
+            "SELECT id FROM value_bets WHERE team_a = ? AND team_b = ? AND match_date = ? AND status = 'pending' AND league = ? LIMIT 1",
+            [f["team_a"], f["team_b"], f["match_date"], league],
         )
         match_data["is_value_bet"] = bool(vb)
         upcoming.append(match_data)
 
     # Live matches — pull from live_matches table for richer data
     raw_live = db.fetch_all(
-        "SELECT * FROM live_matches ORDER BY last_updated DESC"
+        "SELECT * FROM live_matches WHERE league = ? ORDER BY last_updated DESC",
+        [league]
     )
     live_matches = []
     for lm in raw_live:
@@ -281,7 +286,8 @@ def dashboard():
 
     # Recent results from completed fixtures
     raw_results = db.fetch_all(
-        "SELECT * FROM fixtures WHERE status = 'COMPLETED' ORDER BY match_date DESC LIMIT 5"
+        "SELECT * FROM fixtures WHERE status = 'COMPLETED' AND league = ? ORDER BY match_date DESC LIMIT 5",
+        [league]
     )
     recent_results = []
     for r in raw_results:
@@ -289,8 +295,8 @@ def dashboard():
         # Build score string from matches table if available
         match_row = db.fetch_one(
             "SELECT innings1_runs, innings1_wickets, innings2_runs, innings2_wickets FROM matches "
-            "WHERE team_a = ? AND team_b = ? AND match_date = ?",
-            [r["team_a"], r["team_b"], r["match_date"]],
+            "WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ?",
+            [r["team_a"], r["team_b"], r["match_date"], league],
         )
         if match_row:
             result_data["score"] = (
@@ -302,15 +308,15 @@ def dashboard():
 
         # Check if our prediction was correct
         tracker_row = db.fetch_one(
-            "SELECT top_pick_correct FROM model_tracker WHERE team_a = ? AND team_b = ? AND match_date = ?",
-            [r["team_a"], r["team_b"], r["match_date"]],
+            "SELECT top_pick_correct FROM model_tracker WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ?",
+            [r["team_a"], r["team_b"], r["match_date"], league],
         )
         result_data["prediction_correct"] = bool(tracker_row and tracker_row.get("top_pick_correct"))
         result_data["winner"] = r.get("result", "").split(" won")[0] if r.get("result") else ""
         # Try to find winner from matches table
         match_winner = db.fetch_one(
-            "SELECT winner FROM matches WHERE team_a = ? AND team_b = ? AND match_date = ?",
-            [r["team_a"], r["team_b"], r["match_date"]],
+            "SELECT winner FROM matches WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ?",
+            [r["team_a"], r["team_b"], r["match_date"], league],
         )
         if match_winner and match_winner.get("winner"):
             result_data["winner"] = match_winner["winner"]
@@ -318,7 +324,8 @@ def dashboard():
 
     # Value bets - format for dashboard template
     raw_value_bets = db.fetch_all(
-        "SELECT * FROM value_bets WHERE status = 'pending' ORDER BY edge_pct DESC LIMIT 5"
+        "SELECT * FROM value_bets WHERE status = 'pending' AND league = ? ORDER BY edge_pct DESC LIMIT 5",
+        [league]
     )
     value_bets = []
     for vb in raw_value_bets:
@@ -334,12 +341,12 @@ def dashboard():
 
     # Season stats
     total_played = db.fetch_one(
-        "SELECT COUNT(*) as cnt FROM fixtures WHERE status = 'COMPLETED' AND season = ?",
-        [config.CURRENT_SEASON]
+        "SELECT COUNT(*) as cnt FROM fixtures WHERE status = 'COMPLETED' AND season = ? AND league = ?",
+        [config.CURRENT_SEASON, league]
     )
     total_fixtures = db.fetch_one(
-        "SELECT COUNT(*) as cnt FROM fixtures WHERE season = ?",
-        [config.CURRENT_SEASON]
+        "SELECT COUNT(*) as cnt FROM fixtures WHERE season = ? AND league = ?",
+        [config.CURRENT_SEASON, league]
     )
 
     played_count = total_played["cnt"] if total_played else 0
@@ -347,7 +354,7 @@ def dashboard():
 
     # Find current leader
     current_leader = "TBD"
-    ratings = db.fetch_all("SELECT team, elo FROM team_ratings ORDER BY elo DESC LIMIT 1")
+    ratings = db.fetch_all("SELECT team, elo FROM team_ratings WHERE league = ? ORDER BY elo DESC LIMIT 1", [league])
     if ratings:
         current_leader = ratings[0]["team"]
 
@@ -359,10 +366,10 @@ def dashboard():
     }
 
     # Stats for cards
-    total_matches_all = db.fetch_one("SELECT COUNT(*) as cnt FROM matches")
-    pred_count = db.fetch_one("SELECT COUNT(*) as cnt FROM predictions")
-    vb_count = db.fetch_one("SELECT COUNT(*) as cnt FROM value_bets WHERE status = 'pending'")
-    tracker_settled = db.fetch_all("SELECT top_pick_correct FROM model_tracker WHERE status = 'settled'")
+    total_matches_all = db.fetch_one("SELECT COUNT(*) as cnt FROM matches WHERE league = ?", [league])
+    pred_count = db.fetch_one("SELECT COUNT(*) as cnt FROM predictions WHERE league = ?", [league])
+    vb_count = db.fetch_one("SELECT COUNT(*) as cnt FROM value_bets WHERE status = 'pending' AND league = ?", [league])
+    tracker_settled = db.fetch_all("SELECT top_pick_correct FROM model_tracker WHERE status = 'settled' AND league = ?", [league])
     accuracy = 0.0
     if tracker_settled:
         correct = sum(1 for t in tracker_settled if t["top_pick_correct"] == 1)
@@ -385,7 +392,7 @@ def dashboard():
         api_usage=api_usage,
         season=season,
         stats=stats,
-        teams=config.TEAMS,
+        teams=config.TEAMS if league == "psl" else config.IPL_TEAMS,
         now=datetime.utcnow(),
     )
 
@@ -398,48 +405,49 @@ def dashboard():
 @login_required
 def match_detail(team_a, team_b, match_date):
     """Detailed match analysis page."""
+    league = _current_league()
     team_a = standardise(team_a.replace("_", " "))
     team_b = standardise(team_b.replace("_", " "))
 
     # Prediction (raw DB row)
     raw_pred = db.fetch_one(
-        "SELECT * FROM predictions WHERE team_a = ? AND team_b = ? AND match_date = ?",
-        [team_a, team_b, match_date],
+        "SELECT * FROM predictions WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ?",
+        [team_a, team_b, match_date, league],
     )
     if not raw_pred:
         # Try reverse order
         raw_pred = db.fetch_one(
-            "SELECT * FROM predictions WHERE team_a = ? AND team_b = ? AND match_date = ?",
-            [team_b, team_a, match_date],
+            "SELECT * FROM predictions WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ?",
+            [team_b, team_a, match_date, league],
         )
 
     if not raw_pred:
         try:
             from models import ensemble
             venue_row = db.fetch_one(
-                "SELECT venue FROM fixtures WHERE team_a = ? AND team_b = ? AND match_date = ?",
-                [team_a, team_b, match_date],
+                "SELECT venue FROM fixtures WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ?",
+                [team_a, team_b, match_date, league],
             )
             venue = venue_row["venue"] if venue_row else None
             pred_data = ensemble.predict(team_a, team_b, venue, match_date)
             if pred_data:
-                ensemble.save_prediction(pred_data, team_a, team_b, match_date, venue)
+                ensemble.save_prediction(pred_data, team_a, team_b, match_date, venue, league=league)
                 raw_pred = db.fetch_one(
-                    "SELECT * FROM predictions WHERE team_a = ? AND team_b = ? AND match_date = ?",
-                    [team_a, team_b, match_date],
+                    "SELECT * FROM predictions WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ?",
+                    [team_a, team_b, match_date, league],
                 )
         except Exception:
             raw_pred = None
 
     # Fixture info for venue/time
     fixture = db.fetch_one(
-        "SELECT * FROM fixtures WHERE team_a = ? AND team_b = ? AND match_date = ?",
-        [team_a, team_b, match_date],
+        "SELECT * FROM fixtures WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ?",
+        [team_a, team_b, match_date, league],
     )
     if not fixture:
         fixture = db.fetch_one(
-            "SELECT * FROM fixtures WHERE team_a = ? AND team_b = ? AND match_date = ?",
-            [team_b, team_a, match_date],
+            "SELECT * FROM fixtures WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ?",
+            [team_b, team_a, match_date, league],
         )
 
     venue = fixture["venue"] if fixture else (raw_pred.get("venue") if raw_pred else None)
@@ -460,15 +468,15 @@ def match_detail(team_a, team_b, match_date):
             model_details = {}
 
     # Team ratings for Elo breakdown
-    rating_a = db.fetch_one("SELECT * FROM team_ratings WHERE team = ?", [team_a])
-    rating_b = db.fetch_one("SELECT * FROM team_ratings WHERE team = ?", [team_b])
+    rating_a = db.fetch_one("SELECT * FROM team_ratings WHERE team = ? AND league = ?", [team_a, league])
+    rating_b = db.fetch_one("SELECT * FROM team_ratings WHERE team = ? AND league = ?", [team_b, league])
 
     # Toss recommendation
     toss_rec = None
     if raw_pred and raw_pred.get("toss_advantage"):
         toss_rec = raw_pred["toss_advantage"]
     elif venue:
-        vs = db.fetch_one("SELECT * FROM venue_stats WHERE venue = ?", [venue])
+        vs = db.fetch_one("SELECT * FROM venue_stats WHERE venue = ? AND league = ?", [venue, league])
         if vs and vs.get("chase_win_pct"):
             toss_rec = "Bat second (chase)" if vs["chase_win_pct"] > 55 else "Bat first"
 
@@ -514,12 +522,12 @@ def match_detail(team_a, team_b, match_date):
 
     # Sentiment data for the match detail
     sent_a = db.fetch_one(
-        "SELECT * FROM sentiment WHERE team = ? ORDER BY scored_at DESC LIMIT 1",
-        [team_a],
+        "SELECT * FROM sentiment WHERE team = ? AND league = ? ORDER BY scored_at DESC LIMIT 1",
+        [team_a, league],
     )
     sent_b = db.fetch_one(
-        "SELECT * FROM sentiment WHERE team = ? ORDER BY scored_at DESC LIMIT 1",
-        [team_b],
+        "SELECT * FROM sentiment WHERE team = ? AND league = ? ORDER BY scored_at DESC LIMIT 1",
+        [team_b, league],
     )
     if sent_a:
         prediction["sentiment"]["team_a_score"] = sent_a.get("score", 0) or 0
@@ -539,8 +547,8 @@ def match_detail(team_a, team_b, match_date):
 
     # Odds - the template expects a list of odds objects
     raw_odds = db.fetch_all(
-        "SELECT * FROM odds WHERE team_a = ? AND team_b = ? AND match_date = ? ORDER BY fetched_at DESC",
-        [team_a, team_b, match_date],
+        "SELECT * FROM odds WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ? ORDER BY fetched_at DESC",
+        [team_a, team_b, match_date, league],
     )
     odds_list = []
     for o in raw_odds:
@@ -557,8 +565,8 @@ def match_detail(team_a, team_b, match_date):
 
     # Head-to-head record
     h2h_row = db.fetch_one(
-        "SELECT * FROM head_to_head WHERE (team_a = ? AND team_b = ?) OR (team_a = ? AND team_b = ?)",
-        [team_a, team_b, team_b, team_a],
+        "SELECT * FROM head_to_head WHERE ((team_a = ? AND team_b = ?) OR (team_a = ? AND team_b = ?)) AND league = ?",
+        [team_a, team_b, team_b, team_a, league],
     )
     h2h = None
     if h2h_row:
@@ -578,22 +586,22 @@ def match_detail(team_a, team_b, match_date):
         # Last 5 meetings from matches table
         last_5_raw = db.fetch_all(
             "SELECT match_date, winner FROM matches "
-            "WHERE (team_a = ? AND team_b = ?) OR (team_a = ? AND team_b = ?) "
+            "WHERE ((team_a = ? AND team_b = ?) OR (team_a = ? AND team_b = ?)) AND league = ? "
             "ORDER BY match_date DESC LIMIT 5",
-            [team_a, team_b, team_b, team_a],
+            [team_a, team_b, team_b, team_a, league],
         )
         h2h["last_5"] = [{"date": m["match_date"], "winner": m.get("winner", "")} for m in last_5_raw]
 
     # Recent form (last 5 results for each team — W/L/NR list)
     form_a_raw = db.fetch_all(
-        "SELECT winner, team_a, team_b FROM matches WHERE (team_a = ? OR team_b = ?) "
+        "SELECT winner, team_a, team_b FROM matches WHERE (team_a = ? OR team_b = ?) AND league = ? "
         "ORDER BY match_date DESC LIMIT 5",
-        [team_a, team_a],
+        [team_a, team_a, league],
     )
     form_b_raw = db.fetch_all(
-        "SELECT winner, team_a, team_b FROM matches WHERE (team_a = ? OR team_b = ?) "
+        "SELECT winner, team_a, team_b FROM matches WHERE (team_a = ? OR team_b = ?) AND league = ? "
         "ORDER BY match_date DESC LIMIT 5",
-        [team_b, team_b],
+        [team_b, team_b, league],
     )
 
     def _form_list(team, matches):
@@ -616,7 +624,7 @@ def match_detail(team_a, team_b, match_date):
     # Venue stats — template expects specific keys
     venue_stats_data = None
     if venue:
-        vs = db.fetch_one("SELECT * FROM venue_stats WHERE venue = ?", [venue])
+        vs = db.fetch_one("SELECT * FROM venue_stats WHERE venue = ? AND league = ?", [venue, league])
         if vs:
             venue_stats_data = {
                 "avg_first_innings": f"{vs.get('avg_first_innings', 0):.0f}" if vs.get("avg_first_innings") else "-",
@@ -630,8 +638,8 @@ def match_detail(team_a, team_b, match_date):
     weather = None
     if venue:
         weather_row = db.fetch_one(
-            "SELECT * FROM weather WHERE venue = ? AND match_date = ?",
-            [venue, match_date],
+            "SELECT * FROM weather WHERE venue = ? AND match_date = ? AND league = ?",
+            [venue, match_date, league],
         )
         if weather_row:
             weather = dict(weather_row)
@@ -880,13 +888,14 @@ def match_detail(team_a, team_b, match_date):
 @login_required
 def live_hub():
     """Live hub — shows today's matches (live, upcoming today, completed today)."""
+    league = _current_league()
     from datetime import date
     today = date.today().isoformat()
 
     # Today's matches
     todays_matches = db.fetch_all(
-        "SELECT * FROM fixtures WHERE match_date = ? ORDER BY match_time ASC",
-        [today]
+        "SELECT * FROM fixtures WHERE match_date = ? AND league = ? ORDER BY match_time ASC",
+        [today, league]
     )
 
     # Enrich with predictions and live data
@@ -895,8 +904,8 @@ def live_hub():
         match = dict(f)
         # Get prediction
         pred = db.fetch_one(
-            "SELECT * FROM predictions WHERE team_a = ? AND team_b = ? AND match_date = ?",
-            [f["team_a"], f["team_b"], f["match_date"]]
+            "SELECT * FROM predictions WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ?",
+            [f["team_a"], f["team_b"], f["match_date"], league]
         )
         if pred:
             match["team_a_win"] = round((pred["team_a_win"] or 0.5) * 100, 1)
@@ -906,7 +915,7 @@ def live_hub():
             match["team_b_win"] = 50
 
         # Get live data if match is live
-        live_row = db.fetch_one("SELECT * FROM live_matches WHERE fixture_id = ?", [f["id"]])
+        live_row = db.fetch_one("SELECT * FROM live_matches WHERE fixture_id = ? AND league = ?", [f["id"], league])
         if live_row:
             match["live"] = dict(live_row)
         else:
@@ -920,8 +929,8 @@ def live_hub():
     next_match = None
     if not matches:
         next_match = db.fetch_one(
-            "SELECT match_date, COUNT(*) as count FROM fixtures WHERE status = 'SCHEDULED' AND match_date > ? GROUP BY match_date ORDER BY match_date LIMIT 1",
-            [today]
+            "SELECT match_date, COUNT(*) as count FROM fixtures WHERE status = 'SCHEDULED' AND match_date > ? AND league = ? GROUP BY match_date ORDER BY match_date LIMIT 1",
+            [today, league]
         )
 
     return render_template("live.html",
@@ -936,15 +945,16 @@ def live_hub():
 @login_required
 def live_match(match_id):
     """Live in-play match view."""
+    league = _current_league()
     live_row = db.fetch_one(
-        "SELECT * FROM live_matches WHERE id = ?",
-        [match_id],
+        "SELECT * FROM live_matches WHERE id = ? AND league = ?",
+        [match_id, league],
     )
     if not live_row:
         # Try as fixture_id
         live_row = db.fetch_one(
-            "SELECT * FROM live_matches WHERE fixture_id = ?",
-            [match_id],
+            "SELECT * FROM live_matches WHERE fixture_id = ? AND league = ?",
+            [match_id, league],
         )
 
     live = None
@@ -988,8 +998,8 @@ def live_match(match_id):
         # Prop tracker
         pred = db.fetch_one(
             "SELECT total_wides_pred, total_noballs_pred, total_sixes_pred, total_fours_pred "
-            "FROM predictions WHERE team_a = ? AND team_b = ?",
-            [live_row["team_a"], live_row["team_b"]],
+            "FROM predictions WHERE team_a = ? AND team_b = ? AND league = ?",
+            [live_row["team_a"], live_row["team_b"], league],
         )
         if pred or live_row.get("prop_wides") is not None:
             live["prop_tracker"] = {
@@ -1023,13 +1033,14 @@ def live_recalculate():
 @login_required
 def tournament():
     """PSL standings — points table and schedule."""
+    league = _current_league()
     # Build from team_ratings table for standings
     all_teams_list = get_all_teams()
 
     # Points table from team_ratings
     standings = []
     for team_name in all_teams_list:
-        rating = db.fetch_one("SELECT * FROM team_ratings WHERE team = ?", [team_name])
+        rating = db.fetch_one("SELECT * FROM team_ratings WHERE team = ? AND league = ?", [team_name, league])
         abbrev = get_abbreviation(team_name)
         team_config = config.TEAMS.get(abbrev, {})
 
@@ -1064,8 +1075,8 @@ def tournament():
 
     # Also try to compute from completed fixtures for more accuracy
     completed = db.fetch_all(
-        "SELECT * FROM fixtures WHERE status = 'COMPLETED' AND season = ?",
-        [config.CURRENT_SEASON],
+        "SELECT * FROM fixtures WHERE status = 'COMPLETED' AND season = ? AND league = ?",
+        [config.CURRENT_SEASON, league],
     )
     if completed:
         # Rebuild from fixtures
@@ -1094,8 +1105,8 @@ def tournament():
 
             # Determine winner from result text or matches table
             match_row = db.fetch_one(
-                "SELECT winner FROM matches WHERE team_a = ? AND team_b = ? AND match_date = ?",
-                [match["team_a"], match["team_b"], match["match_date"]],
+                "SELECT winner FROM matches WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ?",
+                [match["team_a"], match["team_b"], match["match_date"], league],
             )
             winner = standardise(match_row["winner"]) if match_row and match_row.get("winner") else None
 
@@ -1113,7 +1124,7 @@ def tournament():
 
         # Use NRR from team_ratings
         for team_name in table:
-            rating = db.fetch_one("SELECT nrr FROM team_ratings WHERE team = ?", [team_name])
+            rating = db.fetch_one("SELECT nrr FROM team_ratings WHERE team = ? AND league = ?", [team_name, league])
             if rating and rating.get("nrr") is not None:
                 table[team_name]["nrr"] = rating["nrr"]
 
@@ -1133,9 +1144,9 @@ def tournament():
     )
 
     # Schedule
-    raw_schedule = db.fetch_all("SELECT * FROM fixtures WHERE season = ? ORDER BY match_date ASC", [config.CURRENT_SEASON])
+    raw_schedule = db.fetch_all("SELECT * FROM fixtures WHERE season = ? AND league = ? ORDER BY match_date ASC", [config.CURRENT_SEASON, league])
     if not raw_schedule:
-        raw_schedule = db.fetch_all("SELECT * FROM fixtures ORDER BY match_date ASC")
+        raw_schedule = db.fetch_all("SELECT * FROM fixtures WHERE league = ? ORDER BY match_date ASC", [league])
 
     today = datetime.utcnow().strftime("%Y-%m-%d")
     found_next = False
@@ -1151,8 +1162,8 @@ def tournament():
             item["winner"] = ""
             # Find winner
             match_row = db.fetch_one(
-                "SELECT winner FROM matches WHERE team_a = ? AND team_b = ? AND match_date = ?",
-                [s["team_a"], s["team_b"], s["match_date"]],
+                "SELECT winner FROM matches WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ?",
+                [s["team_a"], s["team_b"], s["match_date"], league],
             )
             if match_row and match_row.get("winner"):
                 item["winner"] = match_row["winner"]
@@ -1161,8 +1172,8 @@ def tournament():
             item["status"] = "upcoming"
             # Attach prediction
             pred = db.fetch_one(
-                "SELECT team_a_win, team_b_win FROM predictions WHERE team_a = ? AND team_b = ? AND match_date = ?",
-                [s["team_a"], s["team_b"], s["match_date"]],
+                "SELECT team_a_win, team_b_win FROM predictions WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ?",
+                [s["team_a"], s["team_b"], s["match_date"], league],
             )
             if pred:
                 item["prediction"] = {
@@ -1198,12 +1209,13 @@ def tournament():
 @login_required
 def sentiment():
     """Sentiment dashboard for all teams."""
+    league = _current_league()
     all_teams = get_all_teams()
     teams = []
     for team_name in all_teams:
         row = db.fetch_one(
-            "SELECT * FROM sentiment WHERE team = ? ORDER BY scored_at DESC LIMIT 1",
-            [team_name],
+            "SELECT * FROM sentiment WHERE team = ? AND league = ? ORDER BY scored_at DESC LIMIT 1",
+            [team_name, league],
         )
         abbrev = get_abbreviation(team_name)
         team_config = config.TEAMS.get(abbrev, {})
@@ -1245,9 +1257,11 @@ def sentiment():
 @login_required
 def performance():
     """Model performance metrics."""
+    league = _current_league()
     # Summary stats from model_performance table (use evaluated_at, NOT logged_at)
     overall = db.fetch_one(
-        "SELECT * FROM model_performance WHERE period = 'overall' ORDER BY evaluated_at DESC LIMIT 1"
+        "SELECT * FROM model_performance WHERE period = 'overall' AND league = ? ORDER BY evaluated_at DESC LIMIT 1",
+        [league]
     )
 
     summary = {
@@ -1258,7 +1272,8 @@ def performance():
 
     # Per-model breakdown
     perf_rows = db.fetch_all(
-        "SELECT * FROM model_performance WHERE period = 'overall' ORDER BY evaluated_at DESC"
+        "SELECT * FROM model_performance WHERE period = 'overall' AND league = ? ORDER BY evaluated_at DESC",
+        [league]
     )
     # Deduplicate by model_name (keep latest)
     seen_models = set()
@@ -1277,7 +1292,8 @@ def performance():
 
     # Recent predictions from model_tracker
     tracker_rows = db.fetch_all(
-        "SELECT * FROM model_tracker ORDER BY match_date DESC LIMIT 20"
+        "SELECT * FROM model_tracker WHERE league = ? ORDER BY match_date DESC LIMIT 20",
+        [league]
     )
     recent_predictions = []
     for t in tracker_rows:
@@ -1312,6 +1328,7 @@ def performance():
 @login_required
 def portfolio():
     """Betting portfolio management."""
+    league = _current_league()
     # Check if specific portfolio requested
     requested_id = request.args.get("id")
 
@@ -1370,7 +1387,8 @@ def portfolio():
 
     # Upcoming matches for the bet form
     upcoming_fixtures = db.fetch_all(
-        "SELECT id, team_a, team_b, match_date FROM fixtures WHERE status = 'SCHEDULED' ORDER BY match_date ASC LIMIT 20"
+        "SELECT id, team_a, team_b, match_date FROM fixtures WHERE status = 'SCHEDULED' AND league = ? ORDER BY match_date ASC LIMIT 20",
+        [league]
     )
     upcoming_matches = []
     for f in upcoming_fixtures:
@@ -1401,7 +1419,8 @@ def place_bet():
     odds = float(request.form.get("odds", 0) or 0)
 
     # Look up fixture
-    fixture = db.fetch_one("SELECT * FROM fixtures WHERE id = ?", [match_id]) if match_id else None
+    league = _current_league()
+    fixture = db.fetch_one("SELECT * FROM fixtures WHERE id = ? AND league = ?", [match_id, league]) if match_id else None
 
     # Get active portfolio
     active_portfolio = db.fetch_one(
@@ -1500,8 +1519,10 @@ def close_portfolio(pid):
 @login_required
 def tracker():
     """Prediction tracker — accuracy, ROI, streaks."""
+    league = _current_league()
     all_tracked = db.fetch_all(
-        "SELECT * FROM model_tracker ORDER BY match_date DESC"
+        "SELECT * FROM model_tracker WHERE league = ? ORDER BY match_date DESC",
+        [league]
     )
 
     settled = [t for t in all_tracked if t.get("status") == "settled"]
@@ -1580,6 +1601,7 @@ def tracker():
 @admin_required
 def settings():
     """Admin settings page."""
+    league = _current_league()
     raw_users = _load_users()
 
     # Template expects a list of user objects with id, username, role, created
@@ -1769,6 +1791,7 @@ def create_portfolio():
 @login_required
 def watchdog():
     """System health monitoring dashboard."""
+    league = _current_league()
     # Build checks dict with keys: data_freshness, model_health, data_integrity, api_system
     checks = {
         "data_freshness": [],
@@ -1780,15 +1803,15 @@ def watchdog():
 
     # ── Data Freshness checks ──
     freshness_tables = {
-        "Fixtures": ("SELECT MAX(updated_at) as latest FROM fixtures", "updated_at"),
-        "Odds": ("SELECT MAX(fetched_at) as latest FROM odds", "fetched_at"),
-        "Sentiment": ("SELECT MAX(scored_at) as latest FROM sentiment", "scored_at"),
-        "Weather": ("SELECT MAX(fetched_at) as latest FROM weather", "fetched_at"),
-        "Predictions": ("SELECT MAX(updated_at) as latest FROM predictions", "updated_at"),
+        "Fixtures": ("SELECT MAX(updated_at) as latest FROM fixtures WHERE league = ?", "updated_at"),
+        "Odds": ("SELECT MAX(fetched_at) as latest FROM odds WHERE league = ?", "fetched_at"),
+        "Sentiment": ("SELECT MAX(scored_at) as latest FROM sentiment WHERE league = ?", "scored_at"),
+        "Weather": ("SELECT MAX(fetched_at) as latest FROM weather WHERE league = ?", "fetched_at"),
+        "Predictions": ("SELECT MAX(updated_at) as latest FROM predictions WHERE league = ?", "updated_at"),
     }
     for table_name, (sql, _col) in freshness_tables.items():
         try:
-            row = db.fetch_one(sql)
+            row = db.fetch_one(sql, [league])
             latest = row["latest"] if row and row.get("latest") else None
             threshold_hrs = config.WATCHDOG_SETTINGS["data_freshness_hours"].get(table_name.lower(), 24)
             if latest:
@@ -1809,7 +1832,8 @@ def watchdog():
     # ── Model Health checks ──
     try:
         perf_rows = db.fetch_all(
-            "SELECT model_name, accuracy, brier_score FROM model_performance WHERE period = 'overall' ORDER BY evaluated_at DESC"
+            "SELECT model_name, accuracy, brier_score FROM model_performance WHERE period = 'overall' AND league = ? ORDER BY evaluated_at DESC",
+            [league]
         )
         seen = set()
         for p in perf_rows:
@@ -1837,14 +1861,14 @@ def watchdog():
 
     # ── Data Integrity checks ──
     integrity_checks = [
-        ("Matches", "SELECT COUNT(*) as cnt FROM matches"),
-        ("Fixtures", "SELECT COUNT(*) as cnt FROM fixtures"),
-        ("Team Ratings", "SELECT COUNT(*) as cnt FROM team_ratings"),
-        ("Venue Stats", "SELECT COUNT(*) as cnt FROM venue_stats"),
+        ("Matches", "SELECT COUNT(*) as cnt FROM matches WHERE league = ?"),
+        ("Fixtures", "SELECT COUNT(*) as cnt FROM fixtures WHERE league = ?"),
+        ("Team Ratings", "SELECT COUNT(*) as cnt FROM team_ratings WHERE league = ?"),
+        ("Venue Stats", "SELECT COUNT(*) as cnt FROM venue_stats WHERE league = ?"),
     ]
     for name, sql in integrity_checks:
         try:
-            row = db.fetch_one(sql)
+            row = db.fetch_one(sql, [league])
             cnt = row["cnt"] if row else 0
             status = "ok" if cnt > 0 else "warning"
             msg = f"{cnt} records"
@@ -1900,6 +1924,7 @@ def run_health_checks():
 @login_required
 def api_predict(team_a, team_b):
     """Generate prediction on demand."""
+    league = _current_league()
     team_a = standardise(team_a.replace("_", " "))
     team_b = standardise(team_b.replace("_", " "))
 
@@ -1912,8 +1937,8 @@ def api_predict(team_a, team_b):
         if not venue or not match_date:
             fix = db.fetch_one(
                 "SELECT venue, match_date FROM fixtures WHERE team_a = ? AND team_b = ? "
-                "AND status = 'SCHEDULED' ORDER BY match_date ASC LIMIT 1",
-                [team_a, team_b],
+                "AND status = 'SCHEDULED' AND league = ? ORDER BY match_date ASC LIMIT 1",
+                [team_a, team_b, league],
             )
             if fix:
                 venue = venue or fix["venue"]
@@ -1922,11 +1947,11 @@ def api_predict(team_a, team_b):
         pred = ensemble.predict(team_a, team_b, venue, match_date)
         if pred:
             fixture_row = db.fetch_one(
-                "SELECT id FROM fixtures WHERE team_a = ? AND team_b = ? AND match_date = ?",
-                [team_a, team_b, match_date],
+                "SELECT id FROM fixtures WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ?",
+                [team_a, team_b, match_date, league],
             )
             fid = fixture_row["id"] if fixture_row else None
-            ensemble.save_prediction(pred, team_a, team_b, match_date, venue, fid)
+            ensemble.save_prediction(pred, team_a, team_b, match_date, venue, fid, league=league)
             return jsonify({"status": "ok", "prediction": pred})
 
         return jsonify({"status": "error", "message": "Could not generate prediction"}), 500
@@ -1938,10 +1963,11 @@ def api_predict(team_a, team_b):
 @login_required
 def api_live_update():
     """Live match update — supports both GET (auto-poll from JS) and POST (manual)."""
+    league = _current_league()
     if request.method == "GET":
         match_id = request.args.get("match_id", "")
         if match_id:
-            live_row = db.fetch_one("SELECT * FROM live_matches WHERE id = ?", [match_id])
+            live_row = db.fetch_one("SELECT * FROM live_matches WHERE id = ? AND league = ?", [match_id, league])
             if live_row:
                 return jsonify({
                     "team_a_win": (live_row.get("live_win_prob_a") or 0.5) * 100,
@@ -1965,7 +1991,7 @@ def api_live_update():
     try:
         from models.live_predictor import calculate_live_probability
 
-        fixture = db.fetch_one("SELECT * FROM fixtures WHERE id = ?", [fixture_id])
+        fixture = db.fetch_one("SELECT * FROM fixtures WHERE id = ? AND league = ?", [fixture_id, league])
         if not fixture:
             return jsonify({"status": "error", "message": "Fixture not found"}), 404
 
@@ -1975,7 +2001,7 @@ def api_live_update():
 
         result = calculate_live_probability(team_a, team_b, venue, innings, score, wickets, overs, target)
 
-        existing = db.fetch_one("SELECT id FROM live_matches WHERE fixture_id = ?", [fixture_id])
+        existing = db.fetch_one("SELECT id FROM live_matches WHERE fixture_id = ? AND league = ?", [fixture_id, league])
         now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
         if existing:
             db.execute(
@@ -1983,25 +2009,25 @@ def api_live_update():
                    current_overs = ?, target = ?, live_win_prob_a = ?, live_win_prob_b = ?,
                    projected_total = ?, current_run_rate = ?, required_rate = ?,
                    last_updated = ?
-                   WHERE fixture_id = ?""",
+                   WHERE fixture_id = ? AND league = ?""",
                 [innings, score, wickets, overs, target,
                  result.get("team_a_win", 0.5), result.get("team_b_win", 0.5),
                  result.get("projected_total"), result.get("current_rate"),
-                 result.get("required_rate"), now, fixture_id],
+                 result.get("required_rate"), now, fixture_id, league],
             )
         else:
             db.execute(
                 """INSERT INTO live_matches (fixture_id, team_a, team_b, venue,
                    current_batting, current_score, current_wickets, current_overs,
                    target, live_win_prob_a, live_win_prob_b, projected_total,
-                   current_run_rate, required_rate, innings, last_updated, auto_update)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)""",
+                   current_run_rate, required_rate, innings, last_updated, auto_update, league)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)""",
                 [fixture_id, team_a, team_b, venue,
                  team_a if innings == 1 else team_b,
                  score, wickets, overs, target,
                  result.get("team_a_win", 0.5), result.get("team_b_win", 0.5),
                  result.get("projected_total"), result.get("current_rate"),
-                 result.get("required_rate"), innings, now],
+                 result.get("required_rate"), innings, now, league],
             )
 
         return jsonify({"status": "ok", "probability": result})
@@ -2028,7 +2054,7 @@ def api_live_whatif():
 
     try:
         from models.live_predictor import what_if
-        live_row = db.fetch_one("SELECT * FROM live_matches WHERE id = ?", [match_id])
+        live_row = db.fetch_one("SELECT * FROM live_matches WHERE id = ? AND league = ?", [match_id, _current_league()])
         if live_row:
             calc = what_if(
                 team_a=live_row["team_a"],
@@ -2053,15 +2079,15 @@ def api_live_whatif():
 @login_required
 def api_live_toggle_auto(fixture_id):
     """Toggle auto-update flag for a live match."""
-    existing = db.fetch_one("SELECT auto_update FROM live_matches WHERE fixture_id = ?", [fixture_id])
+    existing = db.fetch_one("SELECT auto_update FROM live_matches WHERE fixture_id = ? AND league = ?", [fixture_id, _current_league()])
     if not existing:
         return jsonify({"status": "error", "message": "Live match not found"}), 404
 
     new_val = 0 if existing["auto_update"] else 1
     now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
     db.execute(
-        "UPDATE live_matches SET auto_update = ?, last_updated = ? WHERE fixture_id = ?",
-        [new_val, now, fixture_id],
+        "UPDATE live_matches SET auto_update = ?, last_updated = ? WHERE fixture_id = ? AND league = ?",
+        [new_val, now, fixture_id, _current_league()],
     )
     return jsonify({"status": "ok", "auto_update": bool(new_val)})
 
@@ -2071,6 +2097,7 @@ def api_live_toggle_auto(fixture_id):
 def api_refresh_data():
     """Trigger full data refresh — fixtures, odds, weather, sentiment, predictions.
     Called by the Refresh Data button on dashboard."""
+    league = _current_league()
     results = {}
 
     # 1. Fixtures from CricAPI
@@ -2097,7 +2124,8 @@ def api_refresh_data():
     try:
         from data.weather_api import get_match_weather, save_weather_to_db
         upcoming = db.fetch_all(
-            "SELECT DISTINCT venue, match_date, match_time FROM fixtures WHERE status IN ('SCHEDULED','LIVE') ORDER BY match_date LIMIT 5"
+            "SELECT DISTINCT venue, match_date, match_time FROM fixtures WHERE status IN ('SCHEDULED','LIVE') AND league = ? ORDER BY match_date LIMIT 5",
+            [league]
         )
         weather_count = 0
         for fix in upcoming:
@@ -2113,7 +2141,7 @@ def api_refresh_data():
     # 4. Live scores (if any matches are live)
     try:
         from data.cricket_api import get_live_score
-        live_fixtures = db.fetch_all("SELECT * FROM fixtures WHERE status = 'LIVE'")
+        live_fixtures = db.fetch_all("SELECT * FROM fixtures WHERE status = 'LIVE' AND league = ?", [league])
         for lf in live_fixtures:
             if lf.get("cricapi_id"):
                 score = get_live_score(lf["cricapi_id"])
@@ -2128,7 +2156,8 @@ def api_refresh_data():
     try:
         from models.ensemble import predict as ens_predict, save_prediction
         upcoming = db.fetch_all(
-            "SELECT * FROM fixtures WHERE status IN ('SCHEDULED','LIVE') ORDER BY match_date ASC LIMIT 10"
+            "SELECT * FROM fixtures WHERE status IN ('SCHEDULED','LIVE') AND league = ? ORDER BY match_date ASC LIMIT 10",
+            [league]
         )
         pred_count = 0
         for fix in upcoming:
@@ -2136,7 +2165,7 @@ def api_refresh_data():
                 pred = ens_predict(fix["team_a"], fix["team_b"], fix.get("venue"), fix.get("match_date"))
                 if pred:
                     save_prediction(pred, fix["team_a"], fix["team_b"], fix["match_date"],
-                                    fix.get("venue"), fix["id"])
+                                    fix.get("venue"), fix["id"], league=league)
                     pred_count += 1
             except Exception:
                 pass
@@ -2146,7 +2175,6 @@ def api_refresh_data():
 
     # Log refresh timestamps for each source
     now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
-    league = _current_league()
     for source, detail in results.items():
         status = "ok" if "error" not in str(detail).lower() else "error"
         db.execute(
@@ -2171,11 +2199,13 @@ def api_refresh_data():
 @login_required
 def api_tracker_generate():
     """Create tracker entries for upcoming matches with predictions."""
+    league = _current_league()
     upcoming = db.fetch_all(
         "SELECT f.*, p.team_a_win, p.team_b_win, p.confidence, p.model_details "
         "FROM fixtures f "
         "JOIN predictions p ON f.id = p.fixture_id "
-        "WHERE f.status = 'SCHEDULED'"
+        "WHERE f.status = 'SCHEDULED' AND f.league = ?",
+        [league]
     )
 
     count = 0
@@ -2187,8 +2217,8 @@ def api_tracker_generate():
         confidence = fix.get("confidence", 0.5) or 0.5
 
         vb = db.fetch_one(
-            "SELECT * FROM value_bets WHERE team_a = ? AND team_b = ? AND match_date = ? AND status = 'pending' LIMIT 1",
-            [fix["team_a"], fix["team_b"], fix["match_date"]],
+            "SELECT * FROM value_bets WHERE team_a = ? AND team_b = ? AND match_date = ? AND status = 'pending' AND league = ? LIMIT 1",
+            [fix["team_a"], fix["team_b"], fix["match_date"], league],
         )
         is_value_bet = 1 if vb else 0
         value_bet_type = vb.get("bet_type", "") if vb else None
@@ -2201,11 +2231,11 @@ def api_tracker_generate():
                    (match_date, team_a, team_b, venue,
                     predicted_winner, team_a_prob, team_b_prob,
                     confidence, is_value_bet, value_bet_type, value_edge, value_odds,
-                    status, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)""",
+                    status, created_at, league)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)""",
                 [fix["match_date"], fix["team_a"], fix["team_b"],
                  fix.get("venue"), predicted_winner, team_a_win, team_b_win,
-                 confidence, is_value_bet, value_bet_type, value_edge, value_odds, now],
+                 confidence, is_value_bet, value_bet_type, value_edge, value_odds, now, league],
             )
             count += 1
         except Exception:
@@ -2218,11 +2248,13 @@ def api_tracker_generate():
 @login_required
 def api_tracker_settle():
     """Settle completed matches in the tracker."""
+    league = _current_league()
     # Join with matches table to get actual winner
     pending = db.fetch_all(
         "SELECT t.*, m.winner as actual FROM model_tracker t "
-        "LEFT JOIN matches m ON t.team_a = m.team_a AND t.team_b = m.team_b AND t.match_date = m.match_date "
-        "WHERE t.status = 'pending' AND m.winner IS NOT NULL"
+        "LEFT JOIN matches m ON t.team_a = m.team_a AND t.team_b = m.team_b AND t.match_date = m.match_date AND t.league = m.league "
+        "WHERE t.status = 'pending' AND m.winner IS NOT NULL AND t.league = ?",
+        [league]
     )
 
     settled_count = 0
@@ -2237,8 +2269,8 @@ def api_tracker_settle():
 
         # Get actual totals from matches
         match_row = db.fetch_one(
-            "SELECT innings1_runs, innings2_runs FROM matches WHERE team_a = ? AND team_b = ? AND match_date = ?",
-            [entry["team_a"], entry["team_b"], entry["match_date"]],
+            "SELECT innings1_runs, innings2_runs FROM matches WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ?",
+            [entry["team_a"], entry["team_b"], entry["match_date"], league],
         )
         actual_total_a = match_row.get("innings1_runs") if match_row else None
         actual_total_b = match_row.get("innings2_runs") if match_row else None
@@ -2268,10 +2300,10 @@ def api_tracker_settle():
                top_pick_correct = ?, top_pick_pnl = ?,
                value_bet_correct = ?, value_bet_pnl = ?,
                status = 'settled', settled_at = ?
-               WHERE id = ?""",
+               WHERE id = ? AND league = ?""",
             [actual_winner, actual_total_a, actual_total_b,
              correct, top_pick_pnl, value_bet_correct, value_bet_pnl,
-             now, entry["id"]],
+             now, entry["id"], league],
         )
         settled_count += 1
 
@@ -2479,15 +2511,17 @@ def api_optimize_weights():
 @login_required
 def api_export_dashboard():
     """Export all dashboard data as JSON."""
+    league = _current_league()
     export = {
         "exported_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"),
-        "fixtures": db.fetch_all("SELECT * FROM fixtures ORDER BY match_date ASC"),
-        "predictions": db.fetch_all("SELECT * FROM predictions ORDER BY match_date ASC"),
-        "odds": db.fetch_all("SELECT * FROM odds ORDER BY match_date ASC"),
-        "value_bets": db.fetch_all("SELECT * FROM value_bets ORDER BY match_date ASC"),
-        "model_tracker": db.fetch_all("SELECT * FROM model_tracker ORDER BY match_date ASC"),
-        "sentiment": db.fetch_all("SELECT * FROM sentiment ORDER BY scored_at DESC"),
-        "live_matches": db.fetch_all("SELECT * FROM live_matches ORDER BY last_updated DESC"),
+        "league": league,
+        "fixtures": db.fetch_all("SELECT * FROM fixtures WHERE league = ? ORDER BY match_date ASC", [league]),
+        "predictions": db.fetch_all("SELECT * FROM predictions WHERE league = ? ORDER BY match_date ASC", [league]),
+        "odds": db.fetch_all("SELECT * FROM odds WHERE league = ? ORDER BY match_date ASC", [league]),
+        "value_bets": db.fetch_all("SELECT * FROM value_bets WHERE league = ? ORDER BY match_date ASC", [league]),
+        "model_tracker": db.fetch_all("SELECT * FROM model_tracker WHERE league = ? ORDER BY match_date ASC", [league]),
+        "sentiment": db.fetch_all("SELECT * FROM sentiment WHERE league = ? ORDER BY scored_at DESC", [league]),
+        "live_matches": db.fetch_all("SELECT * FROM live_matches WHERE league = ? ORDER BY last_updated DESC", [league]),
         "api_usage": rate_limiter.get_usage_summary(),
     }
     return jsonify(export)
@@ -2501,13 +2535,14 @@ def api_export_dashboard():
 def api_diag():
     """Diagnostic endpoint — no login required."""
     import database.db as _db
-    fixtures = db.fetch_all("SELECT id, status, match_date, team_a, team_b FROM fixtures LIMIT 10")
-    preds = db.fetch_all("SELECT match_date, team_a, team_b, team_a_win, team_b_win FROM predictions LIMIT 10")
-    matches = db.fetch_one("SELECT COUNT(*) as cnt FROM matches")
-    fix_count = db.fetch_one("SELECT COUNT(*) as cnt FROM fixtures")
-    pred_count = db.fetch_one("SELECT COUNT(*) as cnt FROM predictions")
-    ratings = db.fetch_all("SELECT team, elo FROM team_ratings ORDER BY elo DESC")
-    scheduled = db.fetch_all("SELECT COUNT(*) as cnt FROM fixtures WHERE status = 'SCHEDULED'")
+    league = _current_league()
+    fixtures = db.fetch_all("SELECT id, status, match_date, team_a, team_b FROM fixtures WHERE league = ? LIMIT 10", [league])
+    preds = db.fetch_all("SELECT match_date, team_a, team_b, team_a_win, team_b_win FROM predictions WHERE league = ? LIMIT 10", [league])
+    matches = db.fetch_one("SELECT COUNT(*) as cnt FROM matches WHERE league = ?", [league])
+    fix_count = db.fetch_one("SELECT COUNT(*) as cnt FROM fixtures WHERE league = ?", [league])
+    pred_count = db.fetch_one("SELECT COUNT(*) as cnt FROM predictions WHERE league = ?", [league])
+    ratings = db.fetch_all("SELECT team, elo FROM team_ratings WHERE league = ? ORDER BY elo DESC", [league])
+    scheduled = db.fetch_all("SELECT COUNT(*) as cnt FROM fixtures WHERE status = 'SCHEDULED' AND league = ?", [league])
     return jsonify({
         "db_path": _db.DB_PATH,
         "db_exists": os.path.exists(_db.DB_PATH),

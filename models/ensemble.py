@@ -19,7 +19,7 @@ STACKER_PATH = os.path.join(config.CACHE_DIR, "stacker_model.pkl")
 WEIGHTS_PATH = os.path.join(config.CACHE_DIR, "optimized_weights.json")
 
 
-def predict(team_a, team_b, venue=None, match_date=None):
+def predict(team_a, team_b, venue=None, match_date=None, league="psl"):
     """
     Generate ensemble prediction by blending all models.
     1. Get individual model predictions
@@ -32,20 +32,20 @@ def predict(team_a, team_b, venue=None, match_date=None):
 
     # Get individual predictions (graceful degradation)
     try:
-        predictions["batting_bowling"] = batting_bowling.predict(team_a, team_b, venue)
+        predictions["batting_bowling"] = batting_bowling.predict(team_a, team_b, venue, league=league)
     except Exception as e:
         predictions["batting_bowling"] = {"team_a_win": 0.5, "team_b_win": 0.5, "confidence": 0.3,
                                            "details": {"model": "batting_bowling", "error": str(e)}}
 
     try:
-        predictions["elo"] = elo.predict(team_a, team_b, venue)
+        predictions["elo"] = elo.predict(team_a, team_b, venue, league=league)
     except Exception as e:
         predictions["elo"] = {"team_a_win": 0.5, "team_b_win": 0.5, "confidence": 0.3,
                                "details": {"model": "elo", "error": str(e)}}
 
     xgb_pred = None
     try:
-        xgb_pred = xgboost_model.predict(team_a, team_b, venue, match_date)
+        xgb_pred = xgboost_model.predict(team_a, team_b, venue, match_date, league=league)
     except Exception:
         pass
 
@@ -56,13 +56,13 @@ def predict(team_a, team_b, venue=None, match_date=None):
                                     "details": {"model": "xgboost", "error": "not trained"}}
 
     try:
-        predictions["sentiment"] = sentiment_model.predict(team_a, team_b)
+        predictions["sentiment"] = sentiment_model.predict(team_a, team_b, league=league)
     except Exception as e:
         predictions["sentiment"] = {"team_a_win": 0.5, "team_b_win": 0.5, "confidence": 0.3,
                                      "details": {"model": "sentiment", "error": str(e)}}
 
     try:
-        predictions["player_strength"] = player_strength.predict(team_a, team_b, venue, match_date)
+        predictions["player_strength"] = player_strength.predict(team_a, team_b, venue, match_date, league=league)
     except Exception as e:
         predictions["player_strength"] = {"team_a_win": 0.5, "team_b_win": 0.5, "confidence": 0.3,
                                            "details": {"model": "player_strength", "error": str(e)}}
@@ -110,7 +110,7 @@ def predict(team_a, team_b, venue=None, match_date=None):
     # Over/under and prop bets
     ou_pred = None
     try:
-        ou_pred = over_under.predict(team_a, team_b, venue, match_date)
+        ou_pred = over_under.predict(team_a, team_b, venue, match_date, league=league)
     except Exception:
         pass
 
@@ -124,7 +124,7 @@ def predict(team_a, team_b, venue=None, match_date=None):
     if weather and weather.get("heavy_dew"):
         toss_advantage = "bowl_first"
     elif venue:
-        v_stats = db.fetch_one("SELECT chase_win_pct FROM venue_stats WHERE venue = ?", [venue])
+        v_stats = db.fetch_one("SELECT chase_win_pct FROM venue_stats WHERE venue = ? AND league = ?", [venue, league])
         if v_stats and v_stats["chase_win_pct"]:
             if v_stats["chase_win_pct"] > 55:
                 toss_advantage = "bowl_first"
@@ -274,23 +274,23 @@ def calculate_value(prediction, odds_data):
     return value_bets
 
 
-def save_prediction(prediction, team_a, team_b, match_date, venue=None, fixture_id=None):
+def save_prediction(prediction, team_a, team_b, match_date, venue=None, fixture_id=None, league="psl"):
     """Save ensemble prediction to database."""
     db.execute(
-        """INSERT INTO predictions (fixture_id, match_date, team_a, team_b, venue,
+        """INSERT INTO predictions (fixture_id, match_date, team_a, team_b, venue, league,
            team_a_win, team_b_win, predicted_total_a, predicted_total_b,
            over_under_line, over_prob, under_prob,
            total_wides_pred, total_noballs_pred, total_sixes_pred, total_fours_pred,
            confidence, model_details, toss_advantage, dew_factor, venue_bias,
            created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(match_date, team_a, team_b) DO UPDATE SET
            team_a_win=excluded.team_a_win, team_b_win=excluded.team_b_win,
            predicted_total_a=excluded.predicted_total_a, predicted_total_b=excluded.predicted_total_b,
            over_under_line=excluded.over_under_line, over_prob=excluded.over_prob,
            confidence=excluded.confidence, model_details=excluded.model_details,
            dew_factor=excluded.dew_factor, updated_at=excluded.updated_at""",
-        [fixture_id, match_date, team_a, team_b, venue,
+        [fixture_id, match_date, team_a, team_b, venue, league,
          prediction["team_a_win"], prediction["team_b_win"],
          prediction.get("predicted_total_a"), prediction.get("predicted_total_b"),
          prediction.get("over_under_line"), prediction.get("over_prob"), prediction.get("under_prob"),
@@ -302,14 +302,16 @@ def save_prediction(prediction, team_a, team_b, match_date, venue=None, fixture_
     )
 
 
-def optimize_weights():
+def optimize_weights(league="psl"):
     """Optimize model weights using historical predictions to minimize Brier score."""
     from scipy.optimize import minimize
 
-    tracker = db.fetch_all("SELECT * FROM model_tracker WHERE status = 'settled'")
+    tracker = db.fetch_all("SELECT * FROM model_tracker WHERE status = 'settled' AND league = ?", [league])
     if len(tracker) < 20:
         print("[Ensemble] Need at least 20 settled predictions for optimization")
         return None
+
+    model_names = ["batting_bowling", "elo", "xgboost", "sentiment", "player_strength"]
 
     predictions_data = []
     actuals = []
@@ -331,8 +333,6 @@ def optimize_weights():
 
     if not predictions_data:
         return None
-
-    model_names = ["batting_bowling", "elo", "xgboost", "sentiment", "player_strength"]
 
     def brier_objective(weights):
         w = dict(zip(model_names, weights))
@@ -367,11 +367,11 @@ def optimize_weights():
     return None
 
 
-def train_stacker():
+def train_stacker(league="psl"):
     """Train stacking meta-model (LogisticRegression) on historical predictions."""
     from sklearn.linear_model import LogisticRegression
 
-    tracker = db.fetch_all("SELECT * FROM model_tracker WHERE status = 'settled'")
+    tracker = db.fetch_all("SELECT * FROM model_tracker WHERE status = 'settled' AND league = ?", [league])
     if len(tracker) < 30:
         print("[Ensemble] Need at least 30 settled predictions for stacker training")
         return None

@@ -9,12 +9,12 @@ import config
 from models import batting_bowling
 
 
-def predict(team_a, team_b, venue=None, match_date=None):
+def predict(team_a, team_b, venue=None, match_date=None, league="psl"):
     """
     Predict over/under total runs and prop bets.
     """
     # Get base prediction from batting/bowling model
-    base = batting_bowling.predict(team_a, team_b, venue)
+    base = batting_bowling.predict(team_a, team_b, venue, league=league)
     total_a = base["predicted_total_a"]
     total_b = base["predicted_total_b"]
 
@@ -43,12 +43,12 @@ def predict(team_a, team_b, venue=None, match_date=None):
     under_prob = _normal_cdf(z)
 
     # Prop bets from team averages
-    strengths = batting_bowling.calculate_team_strengths()
+    strengths = batting_bowling.calculate_team_strengths(league=league)
     s_a = strengths.get(team_a, {"avg_wides": 4, "avg_noballs": 1})
     s_b = strengths.get(team_b, {"avg_wides": 4, "avg_noballs": 1})
 
     # Venue averages
-    v_stats = db.fetch_one("SELECT * FROM venue_stats WHERE venue = ?", [venue]) if venue else None
+    v_stats = db.fetch_one("SELECT * FROM venue_stats WHERE venue = ? AND league = ?", [venue, league]) if venue else None
 
     total_wides = s_a.get("avg_wides", 4) + s_b.get("avg_wides", 4)
     total_noballs = s_a.get("avg_noballs", 1) + s_b.get("avg_noballs", 1)

@@ -7,7 +7,7 @@ from database import db
 from data.team_names import standardise
 
 
-def predict(team_a, team_b):
+def predict(team_a, team_b, league="psl"):
     """
     Adjust base probability using team sentiment differential.
     T20 is 2-way (no draw), so base is 50/50.
@@ -15,8 +15,8 @@ def predict(team_a, team_b):
     team_a = standardise(team_a)
     team_b = standardise(team_b)
 
-    sent_a = _get_team_sentiment(team_a)
-    sent_b = _get_team_sentiment(team_b)
+    sent_a = _get_team_sentiment(team_a, league=league)
+    sent_b = _get_team_sentiment(team_b, league=league)
 
     # Calculate differential
     diff = sent_a["combined_score"] - sent_b["combined_score"]
@@ -44,13 +44,13 @@ def predict(team_a, team_b):
     }
 
 
-def _get_team_sentiment(team):
+def _get_team_sentiment(team, league="psl"):
     """Get latest combined sentiment for a team."""
     # Try combined first
     result = db.fetch_one(
-        """SELECT * FROM sentiment WHERE team = ? AND source = 'combined'
+        """SELECT * FROM sentiment WHERE team = ? AND source = 'combined' AND league = ?
            ORDER BY scored_at DESC LIMIT 1""",
-        [team]
+        [team, league]
     )
 
     if result:
@@ -64,12 +64,12 @@ def _get_team_sentiment(team):
 
     # Blend reddit and news
     reddit = db.fetch_one(
-        "SELECT * FROM sentiment WHERE team = ? AND source = 'reddit' ORDER BY scored_at DESC LIMIT 1",
-        [team]
+        "SELECT * FROM sentiment WHERE team = ? AND source = 'reddit' AND league = ? ORDER BY scored_at DESC LIMIT 1",
+        [team, league]
     )
     news = db.fetch_one(
-        "SELECT * FROM sentiment WHERE team = ? AND source = 'news' ORDER BY scored_at DESC LIMIT 1",
-        [team]
+        "SELECT * FROM sentiment WHERE team = ? AND source = 'news' AND league = ? ORDER BY scored_at DESC LIMIT 1",
+        [team, league]
     )
 
     reddit_score = reddit["score"] if reddit else 0.0

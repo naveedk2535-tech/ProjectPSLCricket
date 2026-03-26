@@ -1,6 +1,6 @@
 """
 CricSheet.org historical data downloader and parser.
-Downloads PSL ball-by-ball CSV data for model training.
+Downloads PSL and IPL ball-by-ball CSV data for model training.
 Free, unlimited downloads — no API key needed.
 """
 
@@ -21,22 +21,43 @@ from data.rate_limiter import can_call, record_call, check_cache, save_cache
 from data.team_names import standardise, standardise_venue
 
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache")
-CSV_DIR = os.path.join(CACHE_DIR, "cricsheet_psl")
+
+# League-specific URLs and directories
+LEAGUE_URLS = {
+    "psl": "https://cricsheet.org/downloads/psl_male_csv2.zip",
+    "ipl": "https://cricsheet.org/downloads/ipl_male_csv2.zip",
+}
 
 
-def download_psl_data():
-    """Download and extract PSL ball-by-ball CSV data from CricSheet."""
-    if not can_call("cricsheet"):
-        print("[CricSheet] Rate limit reached, skipping download")
+def _csv_dir(league="psl"):
+    """Return the CSV cache directory for a given league."""
+    return os.path.join(CACHE_DIR, f"cricsheet_{league}")
+
+
+def download_psl_data(league="psl"):
+    """Download and extract ball-by-ball CSV data from CricSheet for the given league."""
+    rate_key = f"cricsheet_{league}"
+    if not can_call(rate_key):
+        print(f"[CricSheet] Rate limit reached for {league}, skipping download")
         return False
 
-    os.makedirs(CSV_DIR, exist_ok=True)
-    zip_path = os.path.join(CACHE_DIR, "psl_male_csv2.zip")
+    csv_dir = _csv_dir(league)
+    os.makedirs(csv_dir, exist_ok=True)
+    zip_name = f"{league}_male_csv2.zip"
+    zip_path = os.path.join(CACHE_DIR, zip_name)
+
+    url = LEAGUE_URLS.get(league)
+    if not url:
+        # Fallback to config for PSL
+        url = getattr(config, "CRICSHEET_PSL_URL", LEAGUE_URLS["psl"]) if league == "psl" else LEAGUE_URLS.get(league)
+    if not url:
+        print(f"[CricSheet] No URL configured for league '{league}'")
+        return False
 
     try:
-        print("[CricSheet] Downloading PSL data...")
-        resp = requests.get(config.CRICSHEET_PSL_URL, timeout=60, stream=True)
-        record_call("cricsheet", "download", resp.status_code)
+        print(f"[CricSheet] Downloading {league.upper()} data from {url} ...")
+        resp = requests.get(url, timeout=60, stream=True)
+        record_call(rate_key, "download", resp.status_code)
 
         if resp.status_code != 200:
             print(f"[CricSheet] Download failed: {resp.status_code}")
@@ -47,14 +68,14 @@ def download_psl_data():
                 f.write(chunk)
 
         with zipfile.ZipFile(zip_path, "r") as zf:
-            zf.extractall(CSV_DIR)
+            zf.extractall(csv_dir)
 
-        print(f"[CricSheet] Extracted to {CSV_DIR}")
+        print(f"[CricSheet] Extracted to {csv_dir}")
         return True
 
     except Exception as e:
         print(f"[CricSheet] Error: {e}")
-        record_call("cricsheet", "download", 0)
+        record_call(rate_key, "download", 0)
         return False
 
 
@@ -202,17 +223,18 @@ def parse_ball_by_ball(csv_path):
     return stats
 
 
-def import_all_matches():
-    """Process all CricSheet CSVs and import into database."""
-    if not os.path.exists(CSV_DIR):
-        print("[CricSheet] No data directory found. Run download_psl_data() first.")
+def import_all_matches(league="psl"):
+    """Process all CricSheet CSVs and import into database for the given league."""
+    csv_dir = _csv_dir(league)
+    if not os.path.exists(csv_dir):
+        print(f"[CricSheet] No data directory found for {league}. Run download_psl_data(league='{league}') first.")
         return 0
 
     # Find all match CSV files
-    csv_files = glob.glob(os.path.join(CSV_DIR, "*.csv"))
+    csv_files = glob.glob(os.path.join(csv_dir, "*.csv"))
     if not csv_files:
         # Try subdirectories
-        csv_files = glob.glob(os.path.join(CSV_DIR, "**", "*.csv"), recursive=True)
+        csv_files = glob.glob(os.path.join(csv_dir, "**", "*.csv"), recursive=True)
 
     # Separate info files from ball-by-ball files
     # CricSheet CSV2 format: each match has one CSV with both info and ball-by-ball
@@ -273,11 +295,13 @@ def import_all_matches():
                    death_runs_a, death_wickets_a, death_runs_b, death_wickets_b,
                    total_fours_a, total_sixes_a, total_fours_b, total_sixes_b,
                    total_wides_a, total_noballs_a, total_wides_b, total_noballs_b,
-                   total_extras_a, total_extras_b, dot_balls_a, dot_balls_b)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                   total_extras_a, total_extras_b, dot_balls_a, dot_balls_b,
+                   league)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                    ON CONFLICT(season, match_date, team_a, team_b) DO UPDATE SET
                    winner=excluded.winner, win_margin=excluded.win_margin,
-                   innings1_runs=excluded.innings1_runs, innings2_runs=excluded.innings2_runs""",
+                   innings1_runs=excluded.innings1_runs, innings2_runs=excluded.innings2_runs,
+                   league=excluded.league""",
                 [season, match_date, venue, team_a, team_b,
                  toss_winner, info.get("toss_decision"),
                  stats["innings1"]["runs"], stats["innings1"]["wickets"], stats["innings1"]["overs"],
@@ -296,7 +320,8 @@ def import_all_matches():
                  stats["innings1"]["wides"], stats["innings1"]["noballs"],
                  stats["innings2"]["wides"], stats["innings2"]["noballs"],
                  stats["innings1"]["extras"], stats["innings2"]["extras"],
-                 stats["innings1"]["dot_balls"], stats["innings2"]["dot_balls"]]
+                 stats["innings1"]["dot_balls"], stats["innings2"]["dot_balls"],
+                 league]
             )
             imported += 1
 
@@ -305,17 +330,23 @@ def import_all_matches():
             if errors <= 5:
                 print(f"[CricSheet] Error importing {csv_file}: {e}")
 
-    print(f"[CricSheet] Imported {imported} matches ({errors} errors)")
+    print(f"[CricSheet] Imported {imported} {league.upper()} matches ({errors} errors)")
     return imported
 
 
-def update_venue_stats():
-    """Calculate and update venue statistics from match history."""
-    venues = db.fetch_all("SELECT DISTINCT venue FROM matches WHERE venue IS NOT NULL AND venue != ''")
+def update_venue_stats(league="psl"):
+    """Calculate and update venue statistics from match history for the given league."""
+    venues = db.fetch_all(
+        "SELECT DISTINCT venue FROM matches WHERE venue IS NOT NULL AND venue != '' AND league = ?",
+        [league],
+    )
 
     for v in venues:
         venue = v["venue"]
-        matches = db.fetch_all("SELECT * FROM matches WHERE venue = ?", [venue])
+        matches = db.fetch_all(
+            "SELECT * FROM matches WHERE venue = ? AND league = ?",
+            [venue, league],
+        )
 
         if not matches:
             continue
@@ -342,9 +373,9 @@ def update_venue_stats():
             """INSERT INTO venue_stats (venue, city, matches_played,
                avg_first_innings, avg_second_innings, chase_win_pct, toss_bat_first_pct,
                avg_wides, avg_noballs, avg_sixes, avg_fours,
-               highest_total, lowest_total, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(venue) DO UPDATE SET
+               highest_total, lowest_total, league, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(venue, league) DO UPDATE SET
                matches_played=excluded.matches_played, avg_first_innings=excluded.avg_first_innings,
                avg_second_innings=excluded.avg_second_innings, chase_win_pct=excluded.chase_win_pct,
                toss_bat_first_pct=excluded.toss_bat_first_pct, avg_wides=excluded.avg_wides,
@@ -363,24 +394,29 @@ def update_venue_stats():
              sum(fours) / len(fours) if fours else 0,
              max(first_innings_scores + second_innings_scores) if first_innings_scores or second_innings_scores else None,
              min([s for s in first_innings_scores + second_innings_scores if s and s > 0]) if first_innings_scores or second_innings_scores else None,
+             league,
              db.now_iso()]
         )
 
-    print(f"[CricSheet] Updated venue stats for {len(venues)} venues")
+    print(f"[CricSheet] Updated {league.upper()} venue stats for {len(venues)} venues")
 
 
-def update_head_to_head():
-    """Calculate head-to-head records between all team pairs."""
-    teams = db.fetch_all("SELECT DISTINCT team_a FROM matches UNION SELECT DISTINCT team_b FROM matches")
+def update_head_to_head(league="psl"):
+    """Calculate head-to-head records between all team pairs for the given league."""
+    teams = db.fetch_all(
+        "SELECT DISTINCT team_a FROM matches WHERE league = ? "
+        "UNION SELECT DISTINCT team_b FROM matches WHERE league = ?",
+        [league, league],
+    )
     team_list = [t["team_a"] for t in teams]
 
     for i, team_a in enumerate(team_list):
         for team_b in team_list[i + 1:]:
             matches = db.fetch_all(
-                """SELECT * FROM matches WHERE
-                   (team_a = ? AND team_b = ?) OR (team_a = ? AND team_b = ?)
+                """SELECT * FROM matches WHERE league = ? AND
+                   ((team_a = ? AND team_b = ?) OR (team_a = ? AND team_b = ?))
                    ORDER BY match_date""",
-                [team_a, team_b, team_b, team_a]
+                [league, team_a, team_b, team_b, team_a]
             )
 
             if not matches:
@@ -400,9 +436,9 @@ def update_head_to_head():
             db.execute(
                 """INSERT INTO head_to_head (team_a, team_b, matches_played,
                    team_a_wins, team_b_wins, no_results, avg_total_a, avg_total_b,
-                   last_winner, last_match_date, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(team_a, team_b) DO UPDATE SET
+                   last_winner, last_match_date, league, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(team_a, team_b, league) DO UPDATE SET
                    matches_played=excluded.matches_played, team_a_wins=excluded.team_a_wins,
                    team_b_wins=excluded.team_b_wins, avg_total_a=excluded.avg_total_a,
                    avg_total_b=excluded.avg_total_b, last_winner=excluded.last_winner,
@@ -412,7 +448,22 @@ def update_head_to_head():
                  sum(t for t in totals_b if t) / len(totals_b) if totals_b else None,
                  last["winner"] if last else None,
                  last["match_date"] if last else None,
+                 league,
                  db.now_iso()]
             )
 
-    print(f"[CricSheet] Updated head-to-head records")
+    print(f"[CricSheet] Updated {league.upper()} head-to-head records")
+
+
+# ---------------------------------------------------------------------------
+# Convenience wrappers for IPL
+# ---------------------------------------------------------------------------
+
+def download_ipl_data():
+    """Download IPL ball-by-ball CSV data from CricSheet."""
+    return download_psl_data(league="ipl")
+
+
+def import_ipl_matches():
+    """Import all IPL matches from CricSheet CSVs."""
+    return import_all_matches(league="ipl")

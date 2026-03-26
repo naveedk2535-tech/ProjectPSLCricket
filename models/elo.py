@@ -10,14 +10,15 @@ import config
 from data.team_names import standardise
 
 
-def build_ratings():
+def build_ratings(league="psl"):
     """
     Build Elo ratings from all historical matches (chronological).
     Returns dict of {team: {elo, form_last5, streak_type, streak_length, ...}}
     """
     settings = config.ELO_SETTINGS
     matches = db.fetch_all(
-        "SELECT * FROM matches WHERE winner IS NOT NULL ORDER BY match_date ASC"
+        "SELECT * FROM matches WHERE winner IS NOT NULL AND league = ? ORDER BY match_date ASC",
+        [league]
     )
 
     ratings = {}
@@ -117,12 +118,12 @@ def build_ratings():
     return ratings
 
 
-def predict(team_a, team_b, venue=None):
+def predict(team_a, team_b, venue=None, league="psl"):
     """
     Convert Elo difference to win probability.
     No draw in T20 → 2-way market only.
     """
-    ratings = build_ratings()
+    ratings = build_ratings(league=league)
     settings = config.ELO_SETTINGS
 
     default = {"elo": settings["initial_elo"], "form_last5": 50,
@@ -161,22 +162,22 @@ def predict(team_a, team_b, venue=None):
     }
 
 
-def save_ratings(ratings=None):
+def save_ratings(ratings=None, league="psl"):
     """Save current Elo ratings to team_ratings table."""
     if ratings is None:
-        ratings = build_ratings()
+        ratings = build_ratings(league=league)
 
     for team, r in ratings.items():
         db.execute(
-            """INSERT INTO team_ratings (team, elo, form_last5, form_last10,
+            """INSERT INTO team_ratings (team, league, elo, form_last5, form_last10,
                streak_type, streak_length, matches_played, wins, losses, nrr, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(team) DO UPDATE SET
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(team, league) DO UPDATE SET
                elo=excluded.elo, form_last5=excluded.form_last5, form_last10=excluded.form_last10,
                streak_type=excluded.streak_type, streak_length=excluded.streak_length,
                matches_played=excluded.matches_played, wins=excluded.wins, losses=excluded.losses,
                nrr=excluded.nrr, updated_at=excluded.updated_at""",
-            [team, r["elo"], r["form_last5"], r.get("form_last10", 50),
+            [team, league, r["elo"], r["form_last5"], r.get("form_last10", 50),
              r["streak_type"], r["streak_length"],
              r["matches_played"], r["wins"], r["losses"],
              r.get("nrr", 0.0), db.now_iso()]

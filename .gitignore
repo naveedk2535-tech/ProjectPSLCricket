@@ -40,3 +40,5 @@ Thumbs.db
 
 # Logs
 *.log
+data/cache/cricsheet_ipl/
+data/cache/ipl_male_csv2.zip

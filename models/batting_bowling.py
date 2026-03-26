@@ -9,10 +9,11 @@ from database import db
 import config
 
 
-def calculate_team_strengths():
+def calculate_team_strengths(league="psl"):
     """Calculate batting and bowling strength indices for all teams."""
     matches = db.fetch_all(
-        "SELECT * FROM matches WHERE innings1_runs IS NOT NULL AND innings2_runs IS NOT NULL ORDER BY match_date"
+        "SELECT * FROM matches WHERE innings1_runs IS NOT NULL AND innings2_runs IS NOT NULL AND league = ? ORDER BY match_date",
+        [league]
     )
 
     if not matches:
@@ -110,13 +111,13 @@ def calculate_team_strengths():
     return strengths
 
 
-def predict(team_a, team_b, venue=None):
+def predict(team_a, team_b, venue=None, league="psl"):
     """
     Predict match outcome using batting/bowling strengths.
 
     Returns: {team_a_win, team_b_win, predicted_total_a, predicted_total_b, confidence, details}
     """
-    strengths = calculate_team_strengths()
+    strengths = calculate_team_strengths(league=league)
 
     # Default strengths for new/unknown teams
     default = {"batting_strength": 1.0, "bowling_strength": 1.0,
@@ -130,7 +131,7 @@ def predict(team_a, team_b, venue=None):
     venue_avg_first = 170  # Default
     venue_avg_second = 160
     if venue:
-        v_stats = db.fetch_one("SELECT * FROM venue_stats WHERE venue = ?", [venue])
+        v_stats = db.fetch_one("SELECT * FROM venue_stats WHERE venue = ? AND league = ?", [venue, league])
         if v_stats:
             venue_avg_first = v_stats["avg_first_innings"] or 170
             venue_avg_second = v_stats["avg_second_innings"] or 160
@@ -177,21 +178,21 @@ def predict(team_a, team_b, venue=None):
     }
 
 
-def save_ratings(strengths):
+def save_ratings(strengths, league="psl"):
     """Save team strengths to team_ratings table."""
     for team, s in strengths.items():
         db.execute(
-            """INSERT INTO team_ratings (team, batting_avg, bowling_avg, batting_sr, bowling_economy,
+            """INSERT INTO team_ratings (team, league, batting_avg, bowling_avg, batting_sr, bowling_economy,
                powerplay_run_rate, death_overs_economy, boundary_pct, dot_ball_pct,
                extras_conceded_avg, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(team) DO UPDATE SET
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(team, league) DO UPDATE SET
                batting_avg=excluded.batting_avg, bowling_avg=excluded.bowling_avg,
                powerplay_run_rate=excluded.powerplay_run_rate,
                death_overs_economy=excluded.death_overs_economy,
                extras_conceded_avg=excluded.extras_conceded_avg,
                updated_at=excluded.updated_at""",
-            [team, s["batting_avg"], s["bowling_avg"],
+            [team, league, s["batting_avg"], s["bowling_avg"],
              s.get("batting_sr"), s.get("death_overs_economy"),
              s["powerplay_run_rate"], s["death_overs_economy"],
              None, None, s["avg_wides"] + s["avg_noballs"],

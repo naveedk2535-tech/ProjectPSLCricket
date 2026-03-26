@@ -415,13 +415,14 @@ def task_historical():
 
 
 def task_player_stats():
-    """Extract player stats from CricSheet ball-by-ball data."""
+    """Extract player stats from CricSheet ball-by-ball data for both leagues."""
     task = "player_stats"
-    log_info(task, "Extracting player stats from CricSheet data...")
     try:
         from data.player_squads import seed_player_stats
-        count = seed_player_stats()
-        log_info(task, f"Seeded stats for {count} players")
+        for league in ("psl", "ipl"):
+            log_info(task, f"Extracting {league.upper()} player stats...")
+            count = seed_player_stats(league=league)
+            log_info(task, f"Seeded {count} {league.upper()} players")
     except Exception as e:
         log_error(task, f"Failed: {e}")
         traceback.print_exc()

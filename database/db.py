@@ -104,3 +104,40 @@ def row_count(table_name):
 def now_iso():
     """Return current UTC time in ISO format."""
     return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def migrate_add_league_column():
+    """Add league column to existing tables if not present (safe to re-run)."""
+    conn = get_connection()
+    tables = [
+        "matches", "fixtures", "predictions", "odds", "value_bets",
+        "team_ratings", "venue_stats", "player_stats", "head_to_head",
+        "sentiment", "weather", "model_tracker", "model_performance",
+        "live_matches",
+    ]
+    for table in tables:
+        try:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN league TEXT DEFAULT 'psl'")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+    conn.commit()
+
+
+def migrate_add_data_refresh_log():
+    """Create data_refresh_log table for tracking API update timestamps."""
+    conn = get_connection()
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS data_refresh_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                league TEXT DEFAULT 'psl',
+                source TEXT NOT NULL,
+                status TEXT DEFAULT 'ok',
+                detail TEXT,
+                refreshed_at TEXT NOT NULL,
+                UNIQUE(league, source)
+            )
+        """)
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass

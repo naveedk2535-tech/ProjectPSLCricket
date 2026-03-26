@@ -414,6 +414,19 @@ def task_historical():
         traceback.print_exc()
 
 
+def task_player_stats():
+    """Extract player stats from CricSheet ball-by-ball data."""
+    task = "player_stats"
+    log_info(task, "Extracting player stats from CricSheet data...")
+    try:
+        from data.player_squads import seed_player_stats
+        count = seed_player_stats()
+        log_info(task, f"Seeded stats for {count} players")
+    except Exception as e:
+        log_error(task, f"Failed: {e}")
+        traceback.print_exc()
+
+
 def task_ratings():
     """Rebuild Elo ratings from historical match data."""
     task = "ratings"
@@ -717,6 +730,7 @@ def run_weekly():
     log_info("weekly", "=" * 60)
 
     task_historical()
+    task_player_stats()
     task_ratings()
     task_team_strengths()
     task_venue_update()
@@ -740,6 +754,7 @@ TASK_MAP = {
     "weather": task_weather,
     "sentiment": task_sentiment,
     "ratings": task_ratings,
+    "player_stats": task_player_stats,
     "predictions": task_predictions,
     "tracker": lambda: (task_tracker_generate(), task_tracker_settle()),
     "retrain": task_retrain,

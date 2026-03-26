@@ -7,6 +7,7 @@ PRAGMA foreign_keys=ON;
 -- ─── Historical Match Results ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS matches (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    league TEXT DEFAULT 'psl',
     season TEXT NOT NULL,
     match_date TEXT NOT NULL,
     venue TEXT,
@@ -54,6 +55,7 @@ CREATE TABLE IF NOT EXISTS matches (
 -- ─── Upcoming Fixtures ─────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS fixtures (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    league TEXT DEFAULT 'psl',
     season TEXT NOT NULL DEFAULT '2026',
     match_date TEXT NOT NULL,
     match_time TEXT,
@@ -73,6 +75,7 @@ CREATE TABLE IF NOT EXISTS fixtures (
 -- ─── Model Predictions ─────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS predictions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    league TEXT DEFAULT 'psl',
     fixture_id INTEGER,
     match_date TEXT NOT NULL,
     team_a TEXT NOT NULL,
@@ -102,6 +105,7 @@ CREATE TABLE IF NOT EXISTS predictions (
 -- ─── Bookmaker Odds ────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS odds (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    league TEXT DEFAULT 'psl',
     fixture_id INTEGER,
     match_date TEXT NOT NULL,
     team_a TEXT NOT NULL,
@@ -122,6 +126,7 @@ CREATE TABLE IF NOT EXISTS odds (
 -- ─── Value Bets ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS value_bets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    league TEXT DEFAULT 'psl',
     fixture_id INTEGER,
     match_date TEXT NOT NULL,
     team_a TEXT NOT NULL,
@@ -143,7 +148,8 @@ CREATE TABLE IF NOT EXISTS value_bets (
 -- ─── Team Ratings & Strengths ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS team_ratings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    team TEXT UNIQUE NOT NULL,
+    league TEXT DEFAULT 'psl',
+    team TEXT NOT NULL,
     elo REAL DEFAULT 1500,
     elo_home REAL DEFAULT 1500,
     elo_away REAL DEFAULT 1500,
@@ -169,13 +175,15 @@ CREATE TABLE IF NOT EXISTS team_ratings (
     dot_ball_pct REAL,
     extras_conceded_avg REAL,
     collapse_rate REAL,  -- how often 3+ wickets fall in 3 overs
-    updated_at TEXT
+    updated_at TEXT,
+    UNIQUE(team, league)
 );
 
 -- ─── Venue Statistics ──────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS venue_stats (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    venue TEXT UNIQUE NOT NULL,
+    league TEXT DEFAULT 'psl',
+    venue TEXT NOT NULL,
     city TEXT,
     matches_played INTEGER DEFAULT 0,
     avg_first_innings REAL,
@@ -196,12 +204,14 @@ CREATE TABLE IF NOT EXISTS venue_stats (
     day_avg_score REAL,
     night_avg_score REAL,
     dew_impact_score REAL,
-    updated_at TEXT
+    updated_at TEXT,
+    UNIQUE(venue, league)
 );
 
 -- ─── Player Statistics ─────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS player_stats (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    league TEXT DEFAULT 'psl',
     name TEXT NOT NULL,
     team TEXT NOT NULL,
     role TEXT,  -- 'batsman', 'bowler', 'all-rounder', 'wicket-keeper'
@@ -229,12 +239,13 @@ CREATE TABLE IF NOT EXISTS player_stats (
     availability TEXT DEFAULT 'available',
     impact_score REAL,
     updated_at TEXT,
-    UNIQUE(name, team)
+    UNIQUE(name, team, league)
 );
 
 -- ─── Head-to-Head Records ──────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS head_to_head (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    league TEXT DEFAULT 'psl',
     team_a TEXT NOT NULL,
     team_b TEXT NOT NULL,
     matches_played INTEGER DEFAULT 0,
@@ -249,12 +260,13 @@ CREATE TABLE IF NOT EXISTS head_to_head (
     last_match_date TEXT,
     venue_breakdown TEXT,  -- JSON
     updated_at TEXT,
-    UNIQUE(team_a, team_b)
+    UNIQUE(team_a, team_b, league)
 );
 
 -- ─── Sentiment Scores ──────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS sentiment (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    league TEXT DEFAULT 'psl',
     team TEXT NOT NULL,
     source TEXT NOT NULL,  -- 'reddit', 'news', 'combined'
     score REAL DEFAULT 0.0,
@@ -272,6 +284,7 @@ CREATE TABLE IF NOT EXISTS sentiment (
 -- ─── Weather Data ──────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS weather (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    league TEXT DEFAULT 'psl',
     venue TEXT NOT NULL,
     match_date TEXT NOT NULL,
     temperature REAL,
@@ -290,6 +303,7 @@ CREATE TABLE IF NOT EXISTS weather (
 -- ─── Model Tracker (automated prediction tracking) ─────────────────────────
 CREATE TABLE IF NOT EXISTS model_tracker (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    league TEXT DEFAULT 'psl',
     match_date TEXT NOT NULL,
     team_a TEXT NOT NULL,
     team_b TEXT NOT NULL,
@@ -319,6 +333,7 @@ CREATE TABLE IF NOT EXISTS model_tracker (
 -- ─── Model Performance Metrics ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS model_performance (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    league TEXT DEFAULT 'psl',
     model_name TEXT NOT NULL,
     period TEXT NOT NULL,  -- '2026-03', 'overall', 'last_10'
     accuracy REAL,
@@ -365,6 +380,7 @@ CREATE TABLE IF NOT EXISTS portfolios (
 -- ─── Live Match Tracking ───────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS live_matches (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    league TEXT DEFAULT 'psl',
     fixture_id INTEGER NOT NULL,
     match_date TEXT,
     team_a TEXT NOT NULL,
@@ -429,10 +445,12 @@ CREATE INDEX IF NOT EXISTS idx_matches_date ON matches(match_date);
 CREATE INDEX IF NOT EXISTS idx_matches_season ON matches(season);
 CREATE INDEX IF NOT EXISTS idx_matches_venue ON matches(venue);
 CREATE INDEX IF NOT EXISTS idx_matches_winner ON matches(winner);
+CREATE INDEX IF NOT EXISTS idx_matches_league ON matches(league);
 
 CREATE INDEX IF NOT EXISTS idx_fixtures_date ON fixtures(match_date);
 CREATE INDEX IF NOT EXISTS idx_fixtures_status ON fixtures(status);
 CREATE INDEX IF NOT EXISTS idx_fixtures_teams ON fixtures(team_a, team_b);
+CREATE INDEX IF NOT EXISTS idx_fixtures_league ON fixtures(league);
 
 CREATE INDEX IF NOT EXISTS idx_predictions_date ON predictions(match_date);
 CREATE INDEX IF NOT EXISTS idx_predictions_fixture ON predictions(fixture_id);
@@ -455,8 +473,11 @@ CREATE INDEX IF NOT EXISTS idx_api_calls_name ON api_calls(api_name, called_at);
 
 CREATE INDEX IF NOT EXISTS idx_player_team ON player_stats(team);
 CREATE INDEX IF NOT EXISTS idx_player_name ON player_stats(name);
+CREATE INDEX IF NOT EXISTS idx_player_stats_league ON player_stats(league);
 
 CREATE INDEX IF NOT EXISTS idx_live_fixture ON live_matches(fixture_id);
 
 CREATE INDEX IF NOT EXISTS idx_user_bets_portfolio ON user_bets(portfolio_id);
 CREATE INDEX IF NOT EXISTS idx_user_bets_status ON user_bets(status);
+
+CREATE INDEX IF NOT EXISTS idx_team_ratings_league ON team_ratings(league);

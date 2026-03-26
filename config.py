@@ -90,6 +90,66 @@ TEAMS = {
 
 TEAM_NAMES = [t["name"] for t in TEAMS.values()]
 
+# ─── IPL 2025 Teams ──────────────────────────────────────────────────────
+IPL_TEAMS = {
+    "CSK": {"name": "Chennai Super Kings", "short": "CSK", "color": "#FCCA07", "group": "", "is_new": False},
+    "MI": {"name": "Mumbai Indians", "short": "MI", "color": "#004BA0", "group": "", "is_new": False},
+    "RCB": {"name": "Royal Challengers Bengaluru", "short": "RCB", "color": "#EC1C24", "group": "", "is_new": False},
+    "KKR": {"name": "Kolkata Knight Riders", "short": "KKR", "color": "#3A225D", "group": "", "is_new": False},
+    "DC": {"name": "Delhi Capitals", "short": "DC", "color": "#0078BC", "group": "", "is_new": False},
+    "PBKS": {"name": "Punjab Kings", "short": "PBKS", "color": "#ED1B24", "group": "", "is_new": False},
+    "RR": {"name": "Rajasthan Royals", "short": "RR", "color": "#EA1A85", "group": "", "is_new": False},
+    "SRH": {"name": "Sunrisers Hyderabad", "short": "SRH", "color": "#FF822A", "group": "", "is_new": False},
+    "GT": {"name": "Gujarat Titans", "short": "GT", "color": "#1C1C1C", "group": "", "is_new": False},
+    "LSG": {"name": "Lucknow Super Giants", "short": "LSG", "color": "#A72056", "group": "", "is_new": False},
+}
+
+IPL_TEAM_NAMES = [t["name"] for t in IPL_TEAMS.values()]
+
+# ─── League Configuration ─────────────────────────────────────────────────
+LEAGUES = {
+    "psl": {
+        "name": "Pakistan Super League",
+        "short": "PSL",
+        "season": "2026",
+        "season_start": "2026-03-26",
+        "season_end": "2026-05-03",
+        "cricsheet_url": "https://cricsheet.org/downloads/psl_male_csv2.zip",
+        "odds_sport": "cricket_psl",
+        "subreddits": ["Cricket", "PakCricket", "PSL"],
+        "color": "#10B981",
+        "accent": "#34D399",
+    },
+    "ipl": {
+        "name": "Indian Premier League",
+        "short": "IPL",
+        "season": "2025",
+        "season_start": "2025-03-22",
+        "season_end": "2025-05-25",
+        "cricsheet_url": "https://cricsheet.org/downloads/ipl_male_csv2.zip",
+        "odds_sport": "cricket_ipl_t20",
+        "subreddits": ["Cricket", "ipl", "CricketShitpost"],
+        "color": "#3B82F6",
+        "accent": "#60A5FA",
+    },
+}
+
+DEFAULT_LEAGUE = "psl"
+
+# ─── IPL Venues ──────────────────────────────────────────────────────────
+IPL_VENUES = {
+    "M Chinnaswamy Stadium": {"city": "Bengaluru", "lat": 12.9789, "lon": 77.5997, "avg_first_innings": 185},
+    "Wankhede Stadium": {"city": "Mumbai", "lat": 18.9388, "lon": 72.8258, "avg_first_innings": 175},
+    "MA Chidambaram Stadium": {"city": "Chennai", "lat": 13.0627, "lon": 80.2792, "avg_first_innings": 165},
+    "Eden Gardens": {"city": "Kolkata", "lat": 22.5646, "lon": 88.3433, "avg_first_innings": 170},
+    "Arun Jaitley Stadium": {"city": "Delhi", "lat": 28.6377, "lon": 77.2433, "avg_first_innings": 175},
+    "Narendra Modi Stadium": {"city": "Ahmedabad", "lat": 23.0916, "lon": 72.5968, "avg_first_innings": 170},
+    "Rajiv Gandhi Intl Stadium": {"city": "Hyderabad", "lat": 17.4065, "lon": 78.5505, "avg_first_innings": 175},
+    "Sawai Mansingh Stadium": {"city": "Jaipur", "lat": 26.8934, "lon": 75.8062, "avg_first_innings": 170},
+    "BRSABV Ekana Stadium": {"city": "Lucknow", "lat": 26.8, "lon": 81.0, "avg_first_innings": 168},
+    "IS Bindra Stadium": {"city": "Mohali", "lat": 30.6928, "lon": 76.7370, "avg_first_innings": 170},
+}
+
 # ─── PSL 2026 Groups ───────────────────────────────────────────────────────
 GROUPS = {
     "A": ["Islamabad United", "Karachi Kings", "Peshawar Zalmi", "Hyderabad Kingsmen"],
@@ -196,10 +256,11 @@ CACHE_TTL = {
 
 # ─── Model Weights (ensemble blending) ──────────────────────────────────────
 MODEL_WEIGHTS = {
-    "batting_bowling": 0.15,
-    "elo": 0.20,
-    "xgboost": 0.50,
-    "sentiment": 0.15,
+    "batting_bowling": 0.10,
+    "elo": 0.15,
+    "xgboost": 0.40,
+    "sentiment": 0.10,
+    "player_strength": 0.25,
 }
 
 # ─── Value Bet Settings ────────────────────────────────────────────────────
@@ -252,17 +313,24 @@ DEW_THRESHOLDS = {
 CRICKET_API_BASE = "https://api.cricapi.com/v1"
 ODDS_API_BASE = "https://api.the-odds-api.com/v4"
 ODDS_API_SPORT = "cricket_psl"
+ODDS_API_SPORT_IPL = "cricket_ipl_t20"
 OPEN_METEO_BASE = "https://api.open-meteo.com/v1/forecast"
 NEWSAPI_BASE = "https://newsapi.org/v2"
 CRICSHEET_PSL_URL = "https://cricsheet.org/downloads/psl_male_csv2.zip"
+CRICSHEET_IPL_URL = "https://cricsheet.org/downloads/ipl_male_csv2.zip"
 
 # ─── Reddit Subreddits ─────────────────────────────────────────────────────
 REDDIT_SUBREDDITS = ["Cricket", "PakCricket", "PSL"]
+REDDIT_SUBREDDITS_IPL = ["Cricket", "ipl", "CricketShitpost"]
 
 # ─── Season ─────────────────────────────────────────────────────────────────
 CURRENT_SEASON = "2026"
 PSL_SEASON_START = "2026-03-26"
 PSL_SEASON_END = "2026-05-03"
+
+IPL_SEASON = "2025"
+IPL_SEASON_START = "2025-03-22"
+IPL_SEASON_END = "2025-05-25"
 
 # ─── Backtest Settings ──────────────────────────────────────────────────────
 BACKTEST_SETTINGS = {

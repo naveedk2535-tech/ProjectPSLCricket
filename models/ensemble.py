@@ -13,7 +13,7 @@ from datetime import datetime
 
 import config
 from database import db
-from models import batting_bowling, elo, xgboost_model, sentiment as sentiment_model, over_under
+from models import batting_bowling, elo, xgboost_model, sentiment as sentiment_model, over_under, player_strength
 
 STACKER_PATH = os.path.join(config.CACHE_DIR, "stacker_model.pkl")
 WEIGHTS_PATH = os.path.join(config.CACHE_DIR, "optimized_weights.json")
@@ -60,6 +60,12 @@ def predict(team_a, team_b, venue=None, match_date=None):
     except Exception as e:
         predictions["sentiment"] = {"team_a_win": 0.5, "team_b_win": 0.5, "confidence": 0.3,
                                      "details": {"model": "sentiment", "error": str(e)}}
+
+    try:
+        predictions["player_strength"] = player_strength.predict(team_a, team_b, venue, match_date)
+    except Exception as e:
+        predictions["player_strength"] = {"team_a_win": 0.5, "team_b_win": 0.5, "confidence": 0.3,
+                                           "details": {"model": "player_strength", "error": str(e)}}
 
     # Try stacking ensemble
     stacked = _stacker_predict(predictions, team_a, team_b)
@@ -191,7 +197,7 @@ def _stacker_predict(predictions, team_a, team_b):
 
         # Build feature vector for stacker
         features = []
-        for model in ["batting_bowling", "elo", "xgboost", "sentiment"]:
+        for model in ["batting_bowling", "elo", "xgboost", "sentiment", "player_strength"]:
             p = predictions.get(model, {"team_a_win": 0.5, "team_b_win": 0.5})
             features.extend([p["team_a_win"], p["team_b_win"]])
 
@@ -314,7 +320,7 @@ def optimize_weights():
             continue
 
         pred_dict = {}
-        for model in ["batting_bowling", "elo", "xgboost", "sentiment"]:
+        for model in model_names:
             if model in details:
                 pred_dict[model] = details[model].get("team_a_win", 0.5)
             else:
@@ -326,8 +332,10 @@ def optimize_weights():
     if not predictions_data:
         return None
 
+    model_names = ["batting_bowling", "elo", "xgboost", "sentiment", "player_strength"]
+
     def brier_objective(weights):
-        w = dict(zip(["batting_bowling", "elo", "xgboost", "sentiment"], weights))
+        w = dict(zip(model_names, weights))
         total_w = sum(weights)
         if total_w == 0:
             return 1.0
@@ -340,14 +348,14 @@ def optimize_weights():
 
     result = minimize(
         brier_objective,
-        x0=[0.15, 0.20, 0.50, 0.15],
+        x0=[0.10, 0.15, 0.40, 0.10, 0.25],
         method="SLSQP",
-        bounds=[(0, 1)] * 4,
+        bounds=[(0, 1)] * 5,
         constraints={"type": "eq", "fun": lambda w: sum(w) - 1},
     )
 
     if result.success:
-        optimized = dict(zip(["batting_bowling", "elo", "xgboost", "sentiment"], result.x.tolist()))
+        optimized = dict(zip(model_names, result.x.tolist()))
         optimized = {k: round(v, 4) for k, v in optimized.items()}
 
         with open(WEIGHTS_PATH, "w") as f:
@@ -377,7 +385,7 @@ def train_stacker():
             continue
 
         features = []
-        for model in ["batting_bowling", "elo", "xgboost", "sentiment"]:
+        for model in ["batting_bowling", "elo", "xgboost", "sentiment", "player_strength"]:
             d = details.get(model, {"team_a_win": 0.5, "team_b_win": 0.5})
             features.extend([d.get("team_a_win", 0.5), d.get("team_b_win", 0.5)])
 

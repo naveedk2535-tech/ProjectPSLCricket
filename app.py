@@ -93,6 +93,8 @@ def admin_required(f):
 def ensure_db():
     if not hasattr(app, "_db_initialized"):
         db.init_db()
+        db.migrate_add_league_column()
+        db.migrate_add_data_refresh_log()
         app._db_initialized = True
 
 
@@ -130,6 +132,25 @@ def format_prob_filter(value):
 def _get_team_color(name):
     """Helper to get team colour."""
     return team_color_filter(name)
+
+
+@app.context_processor
+def inject_league_and_refresh():
+    """Make league info and data refresh timestamps available to all templates."""
+    league = session.get("league", "psl") if session else "psl"
+    refresh_log = []
+    try:
+        refresh_log = db.fetch_all(
+            "SELECT source, status, detail, refreshed_at FROM data_refresh_log WHERE league = ? ORDER BY refreshed_at DESC",
+            [league]
+        )
+    except Exception:
+        pass
+    return {
+        "current_league": league,
+        "league_config": config.LEAGUES.get(league, config.LEAGUES["psl"]),
+        "data_refresh_log": refresh_log,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +202,21 @@ def logout():
     session.clear()
     flash("You have been logged out.", "info")
     return redirect(url_for("login"))
+
+
+@app.route("/league/<league>")
+@login_required
+def switch_league(league):
+    """Switch between PSL and IPL."""
+    if league in ("psl", "ipl"):
+        session["league"] = league
+        flash(f"Switched to {league.upper()}", "success")
+    return redirect(url_for("dashboard"))
+
+
+def _current_league():
+    """Get current league from session, default to psl."""
+    return session.get("league", "psl")
 
 
 # ---------------------------------------------------------------------------
@@ -640,6 +676,186 @@ def match_detail(team_a, team_b, match_date):
         dominant = team_a if h2h["team_a_wins"] > h2h["team_b_wins"] else team_b
         key_signals.append(f"{dominant} leads the head-to-head record")
 
+    # Player strength data and matchup analysis
+    player_cards = None
+    matchup_analysis = None
+    try:
+        from models import player_strength
+        player_cards = player_strength.get_player_detail_cards(team_a, team_b)
+        matchup_analysis = player_strength.get_matchup_analysis(team_a, team_b, venue)
+
+        # Add player-related key signals
+        if matchup_analysis:
+            if matchup_analysis.get("batting", {}).get("advantage"):
+                key_signals.append(f"{matchup_analysis['batting']['advantage']} has stronger batting lineup (player stats)")
+            if matchup_analysis.get("bowling", {}).get("advantage"):
+                key_signals.append(f"{matchup_analysis['bowling']['advantage']} has stronger bowling attack (player stats)")
+            vm = matchup_analysis.get("venue_matchup", {})
+            if vm.get("advantage") and vm.get("reason"):
+                key_signals.append(f"Venue favors {vm['advantage']}: {vm['reason']}")
+    except Exception:
+        pass
+
+    # Build factor cards — all triggers being monitored
+    factor_cards = []
+
+    # Elo factor
+    if rating_a and rating_b:
+        elo_a = rating_a.get("elo", 1500) or 1500
+        elo_b = rating_b.get("elo", 1500) or 1500
+        factor_cards.append({
+            "title": "Elo Rating",
+            "icon": "chart-bar",
+            "color": "emerald",
+            "items": [
+                {"label": team_a, "value": f"{elo_a:.0f}"},
+                {"label": team_b, "value": f"{elo_b:.0f}"},
+                {"label": "Difference", "value": f"{abs(elo_a - elo_b):.0f} pts"},
+            ],
+            "verdict": f"{team_a if elo_a > elo_b else team_b} advantage" if abs(elo_a - elo_b) > 30 else "Even",
+        })
+
+    # Form factor
+    if rating_a and rating_b:
+        form_a_val = rating_a.get("form_last5", 0) or 0
+        form_b_val = rating_b.get("form_last5", 0) or 0
+        streak_a = f"{rating_a.get('streak_length', 0) or 0}{rating_a.get('streak_type', 'N')}"
+        streak_b = f"{rating_b.get('streak_length', 0) or 0}{rating_b.get('streak_type', 'N')}"
+        factor_cards.append({
+            "title": "Recent Form",
+            "icon": "trending-up",
+            "color": "blue",
+            "items": [
+                {"label": f"{team_a} Form", "value": f"{form_a_val:.0f}%"},
+                {"label": f"{team_b} Form", "value": f"{form_b_val:.0f}%"},
+                {"label": f"{team_a} Streak", "value": streak_a},
+                {"label": f"{team_b} Streak", "value": streak_b},
+            ],
+            "verdict": f"{team_a if form_a_val > form_b_val else team_b} in better form" if abs(form_a_val - form_b_val) > 10 else "Similar form",
+        })
+
+    # Weather & Dew factor
+    if weather:
+        dew_s = weather.get("dew_score", 0) or 0
+        factor_cards.append({
+            "title": "Weather & Dew",
+            "icon": "cloud",
+            "color": "cyan",
+            "items": [
+                {"label": "Temperature", "value": f"{weather.get('temperature', '-')}°C"},
+                {"label": "Humidity", "value": f"{weather.get('humidity', '-')}%"},
+                {"label": "Dew Score", "value": f"{dew_s:.1f}"},
+                {"label": "Wind", "value": f"{weather.get('wind_speed', '-')} km/h"},
+            ],
+            "verdict": "Heavy dew — bat second" if dew_s > 0.6 else ("Moderate dew" if dew_s > 0.3 else "Low dew — neutral"),
+        })
+
+    # Venue factor
+    if venue_stats_data:
+        factor_cards.append({
+            "title": "Venue Analysis",
+            "icon": "building",
+            "color": "purple",
+            "items": [
+                {"label": "Avg 1st Innings", "value": venue_stats_data.get("avg_first_innings", "-")},
+                {"label": "Avg 2nd Innings", "value": venue_stats_data.get("avg_second_innings", "-")},
+                {"label": "Chase Win %", "value": f"{venue_stats_data.get('chase_pct', '-')}%"},
+                {"label": "Pace / Spin", "value": f"{venue_stats_data.get('pace_pct', '50')}% / {venue_stats_data.get('spin_pct', '50')}%"},
+            ],
+            "verdict": f"Chase-friendly" if venue_stats_data.get("chase_pct", "50") != "-" and int(venue_stats_data.get("chase_pct", "50")) > 55 else "Bat first venue" if venue_stats_data.get("chase_pct", "50") != "-" and int(venue_stats_data.get("chase_pct", "50")) < 45 else "Balanced venue",
+        })
+
+    # H2H factor
+    if h2h and h2h.get("total", 0) > 0:
+        factor_cards.append({
+            "title": "Head to Head",
+            "icon": "arrows-right-left",
+            "color": "amber",
+            "items": [
+                {"label": f"{team_a} Wins", "value": str(h2h.get("team_a_wins", 0))},
+                {"label": f"{team_b} Wins", "value": str(h2h.get("team_b_wins", 0))},
+                {"label": "Total Meetings", "value": str(h2h.get("total", 0))},
+            ],
+            "verdict": f"{team_a if h2h['team_a_wins'] > h2h['team_b_wins'] else team_b} dominant" if h2h["team_a_wins"] != h2h["team_b_wins"] else "Evenly matched",
+        })
+
+    # Sentiment factor
+    sent_score_a = prediction["sentiment"]["team_a_score"]
+    sent_score_b = prediction["sentiment"]["team_b_score"]
+    if sent_score_a != 0 or sent_score_b != 0:
+        factor_cards.append({
+            "title": "Sentiment",
+            "icon": "chat-bubble",
+            "color": "pink",
+            "items": [
+                {"label": f"{team_a}", "value": f"{sent_score_a:.2f}"},
+                {"label": f"{team_b}", "value": f"{sent_score_b:.2f}"},
+                {"label": f"{team_a} Trend", "value": prediction["sentiment"]["team_a_trend"]},
+                {"label": f"{team_b} Trend", "value": prediction["sentiment"]["team_b_trend"]},
+            ],
+            "verdict": f"{team_a if sent_score_a > sent_score_b else team_b} more positive buzz" if abs(sent_score_a - sent_score_b) > 0.05 else "Neutral sentiment",
+        })
+
+    # Batting strength factor
+    if matchup_analysis and matchup_analysis.get("batting"):
+        bat = matchup_analysis["batting"]
+        factor_cards.append({
+            "title": "Batting Strength",
+            "icon": "bolt",
+            "color": "lime",
+            "items": [
+                {"label": f"{team_a} Strength", "value": f"{bat.get('team_a', {}).get('batting_strength', '-'):.2f}" if isinstance(bat.get('team_a', {}).get('batting_strength'), (int, float)) else "-"},
+                {"label": f"{team_b} Strength", "value": f"{bat.get('team_b', {}).get('batting_strength', '-'):.2f}" if isinstance(bat.get('team_b', {}).get('batting_strength'), (int, float)) else "-"},
+                {"label": f"{team_a} PP SR", "value": f"{bat.get('team_a', {}).get('powerplay_sr', 0):.1f}"},
+                {"label": f"{team_b} PP SR", "value": f"{bat.get('team_b', {}).get('powerplay_sr', 0):.1f}"},
+            ],
+            "verdict": f"{bat.get('advantage', 'Even')} has batting edge",
+        })
+
+    # Bowling strength factor
+    if matchup_analysis and matchup_analysis.get("bowling"):
+        bowl = matchup_analysis["bowling"]
+        factor_cards.append({
+            "title": "Bowling Strength",
+            "icon": "fire",
+            "color": "red",
+            "items": [
+                {"label": f"{team_a} Strength", "value": f"{bowl.get('team_a', {}).get('bowling_strength', '-'):.2f}" if isinstance(bowl.get('team_a', {}).get('bowling_strength'), (int, float)) else "-"},
+                {"label": f"{team_b} Strength", "value": f"{bowl.get('team_b', {}).get('bowling_strength', '-'):.2f}" if isinstance(bowl.get('team_b', {}).get('bowling_strength'), (int, float)) else "-"},
+                {"label": f"{team_a} Death Econ", "value": f"{bowl.get('team_a', {}).get('death_economy', 0):.1f}"},
+                {"label": f"{team_b} Death Econ", "value": f"{bowl.get('team_b', {}).get('death_economy', 0):.1f}"},
+            ],
+            "verdict": f"{bowl.get('advantage', 'Even')} has bowling edge",
+        })
+
+    # Odds/Value factor
+    if odds_list:
+        best_edge = max(odds_list, key=lambda o: abs(o.get("edge", 0)))
+        factor_cards.append({
+            "title": "Bookmaker Odds",
+            "icon": "currency-dollar",
+            "color": "yellow",
+            "items": [
+                {"label": f"{team_a} Odds", "value": f"{odds_list[0].get('team_a_odds', '-')}"},
+                {"label": f"{team_b} Odds", "value": f"{odds_list[0].get('team_b_odds', '-')}"},
+                {"label": "Best Edge", "value": f"{best_edge.get('edge', 0):+.1f}%"},
+                {"label": "Bookmaker", "value": odds_list[0].get("bookmaker", "-")},
+            ],
+            "verdict": f"Value on {team_a if best_edge.get('edge', 0) > 3 else team_b}" if abs(best_edge.get("edge", 0)) > 3 else "No clear value",
+        })
+
+    # Toss factor
+    if toss_rec:
+        factor_cards.append({
+            "title": "Toss Impact",
+            "icon": "arrow-path",
+            "color": "indigo",
+            "items": [
+                {"label": "Recommendation", "value": str(toss_rec)},
+            ],
+            "verdict": f"Win toss & {toss_rec}" if toss_rec not in ("neutral",) else "Toss neutral",
+        })
+
     return render_template(
         "match.html",
         prediction=prediction,
@@ -650,6 +866,9 @@ def match_detail(team_a, team_b, match_date):
         weather=weather,
         prop_bets=prop_bets,
         key_signals=key_signals if key_signals else None,
+        player_cards=player_cards,
+        matchup_analysis=matchup_analysis,
+        factor_cards=factor_cards,
     )
 
 
@@ -1093,16 +1312,22 @@ def performance():
 @login_required
 def portfolio():
     """Betting portfolio management."""
-    # Get first active portfolio (portfolios table has no username column)
-    active_portfolio = db.fetch_one(
-        "SELECT * FROM portfolios WHERE status = 'active' ORDER BY created_at DESC LIMIT 1"
-    )
+    # Check if specific portfolio requested
+    requested_id = request.args.get("id")
+
+    if requested_id:
+        active_portfolio = db.fetch_one("SELECT * FROM portfolios WHERE id = ?", [requested_id])
+    else:
+        active_portfolio = db.fetch_one(
+            "SELECT * FROM portfolios WHERE status = 'active' ORDER BY created_at DESC LIMIT 1"
+        )
+
+    # Get all portfolios for selector
+    all_portfolios = db.fetch_all("SELECT * FROM portfolios ORDER BY created_at DESC")
 
     portfolio_data = {
-        "bankroll": 0,
-        "starting_bankroll": 0,
-        "pnl": 0,
-        "roi": 0,
+        "bankroll": 0, "starting_bankroll": 0, "pnl": 0, "roi": 0,
+        "id": None, "name": "No Portfolio", "status": "none",
     }
     portfolio_id = None
     if active_portfolio:
@@ -1112,10 +1337,11 @@ def portfolio():
         pnl = bankroll - starting
         roi = (pnl / starting * 100) if starting > 0 else 0
         portfolio_data = {
-            "bankroll": bankroll,
-            "starting_bankroll": starting,
-            "pnl": pnl,
-            "roi": roi,
+            "bankroll": bankroll, "starting_bankroll": starting,
+            "pnl": pnl, "roi": roi,
+            "id": portfolio_id,
+            "name": active_portfolio.get("name", "Main"),
+            "status": active_portfolio.get("status", "active"),
         }
 
     # Get bets for this portfolio (user_bets table has no username column)
@@ -1158,6 +1384,7 @@ def portfolio():
     return render_template(
         "portfolio.html",
         portfolio=portfolio_data,
+        all_portfolios=all_portfolios,
         bets=bets,
         upcoming_matches=upcoming_matches,
     )
@@ -1202,6 +1429,66 @@ def place_bet():
     except Exception as exc:
         flash(f"Error placing bet: {exc}", "danger")
 
+    return redirect(url_for("portfolio"))
+
+
+@app.route("/portfolio/settle/<int:bet_id>", methods=["POST"])
+@login_required
+def settle_bet(bet_id):
+    """Settle a bet as won, lost, or void."""
+    result = request.form.get("result", "")  # won, lost, void
+    bet = db.fetch_one("SELECT * FROM user_bets WHERE id = ?", [bet_id])
+    if not bet:
+        flash("Bet not found.", "danger")
+        return redirect(url_for("portfolio"))
+
+    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+    stake = bet.get("stake", 0) or 0
+    odds = bet.get("odds", 0) or 0
+
+    if result == "won":
+        pnl = stake * (odds - 1)
+    elif result == "lost":
+        pnl = -stake
+    else:  # void
+        pnl = 0
+
+    db.execute(
+        "UPDATE user_bets SET status = ?, actual_pnl = ?, settled_at = ? WHERE id = ?",
+        [result, pnl, now, bet_id]
+    )
+
+    # Update portfolio bankroll
+    portfolio_id = bet.get("portfolio_id")
+    if portfolio_id:
+        db.execute(
+            "UPDATE portfolios SET bankroll = bankroll + ? WHERE id = ?",
+            [pnl, portfolio_id]
+        )
+
+    flash(f"Bet settled as {result}. P&L: {pnl:+.0f}", "success")
+    return redirect(url_for("portfolio"))
+
+
+@app.route("/portfolio/update-bankroll", methods=["POST"])
+@login_required
+def update_bankroll():
+    """Update portfolio bankroll."""
+    portfolio_id = request.form.get("portfolio_id")
+    new_bankroll = float(request.form.get("bankroll", 0) or 0)
+
+    db.execute("UPDATE portfolios SET bankroll = ? WHERE id = ?", [new_bankroll, portfolio_id])
+    flash("Bankroll updated.", "success")
+    return redirect(url_for("portfolio"))
+
+
+@app.route("/portfolio/close/<int:pid>")
+@login_required
+def close_portfolio(pid):
+    """Close a portfolio."""
+    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+    db.execute("UPDATE portfolios SET status = 'closed', closed_at = ? WHERE id = ?", [now, pid])
+    flash("Portfolio closed.", "success")
     return redirect(url_for("portfolio"))
 
 
@@ -1856,6 +2143,26 @@ def api_refresh_data():
         results["predictions"] = f"{pred_count} updated"
     except Exception as exc:
         results["predictions"] = f"error: {exc}"
+
+    # Log refresh timestamps for each source
+    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+    league = _current_league()
+    for source, detail in results.items():
+        status = "ok" if "error" not in str(detail).lower() else "error"
+        db.execute(
+            """INSERT INTO data_refresh_log (league, source, status, detail, refreshed_at)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(league, source) DO UPDATE SET
+               status=excluded.status, detail=excluded.detail, refreshed_at=excluded.refreshed_at""",
+            [league, source, status, str(detail), now]
+        )
+
+    # Get all refresh timestamps for response
+    refresh_log = db.fetch_all(
+        "SELECT source, status, detail, refreshed_at FROM data_refresh_log WHERE league = ? ORDER BY source",
+        [league]
+    )
+    results["_last_updated"] = {r["source"]: r["refreshed_at"] for r in refresh_log}
 
     return jsonify({"status": "ok", "results": results})
 

@@ -112,6 +112,31 @@
             </div>
         </div>
 
+        <!-- League Switcher -->
+        <div class="mx-3 mb-2 flex rounded-lg bg-white/5 border border-white/10 p-0.5" x-show="!collapsed || window.innerWidth < 1024">
+            <a href="{{ url_for('switch_league', league='psl') }}"
+               class="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all
+               {% if session.get('league', 'psl') == 'psl' %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/30{% else %}text-gray-500 hover:text-gray-300{% endif %}">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                PSL
+            </a>
+            <a href="{{ url_for('switch_league', league='ipl') }}"
+               class="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all
+               {% if session.get('league', 'psl') == 'ipl' %}bg-blue-500/20 text-blue-400 border border-blue-500/30{% else %}text-gray-500 hover:text-gray-300{% endif %}">
+                <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                IPL
+            </a>
+        </div>
+
+        <div class="mx-2 mb-2 hidden" :class="collapsed ? 'lg:block' : ''" x-show="collapsed && window.innerWidth >= 1024">
+            <a href="{{ url_for('switch_league', league=('ipl' if session.get('league', 'psl') == 'psl' else 'psl')) }}"
+               class="flex items-center justify-center w-10 h-10 mx-auto rounded-lg bg-white/5 border border-white/10 text-[10px] font-bold
+               {% if session.get('league', 'psl') == 'psl' %}text-emerald-400{% else %}text-blue-400{% endif %}"
+               title="Switch to {{ 'IPL' if session.get('league', 'psl') == 'psl' else 'PSL' }}">
+                {{ session.get('league', 'psl')|upper }}
+            </a>
+        </div>
+
         <!-- Collapse toggle (desktop only) -->
         <button @click="collapsed = !collapsed"
                 class="hidden lg:flex items-center justify-center mx-3 mb-2 h-7 rounded-md text-gray-500 hover:text-gray-300 hover:bg-white/5">
@@ -220,6 +245,11 @@
         <div class="hidden lg:flex items-center justify-between px-6 lg:px-8 py-3 border-b border-gray-800/30 bg-[#0a0f1a]/60 backdrop-blur-sm">
             <div class="flex items-center gap-4">
                 <h1 class="text-xl font-bold text-white tracking-tight">{% block page_title %}Dashboard{% endblock %}</h1>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider
+                    {% if session.get('league', 'psl') == 'psl' %}bg-emerald-500/15 text-emerald-400 border border-emerald-500/20
+                    {% else %}bg-blue-500/15 text-blue-400 border border-blue-500/20{% endif %}">
+                    {{ session.get('league', 'psl')|upper }}
+                </span>
                 <nav class="flex items-center gap-1.5 text-xs text-gray-500">
                     <a href="{{ url_for('dashboard') }}" class="hover:text-gray-300">Home</a>
                     {% block breadcrumb %}{% endblock %}

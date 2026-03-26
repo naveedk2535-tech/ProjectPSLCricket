@@ -141,6 +141,10 @@
                         <svg class="w-4 h-4 mx-auto mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
                         Sentiment
                     </button>
+                    <button @click="modelTab = 'players'" :class="modelTab === 'players' ? 'active-tab' : 'text-gray-500 hover:text-gray-300'" class="model-tab flex-1 min-w-[120px] px-4 py-3 text-xs font-bold uppercase tracking-wider text-center transition-all">
+                        <svg class="w-4 h-4 mx-auto mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        Players
+                    </button>
                 </div>
 
                 <div class="p-5">
@@ -248,6 +252,68 @@
                             {% for kw in prediction.sentiment.keywords %}
                             <span class="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[10px] text-gray-400">#{{ kw }}</span>
                             {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    {# Player Strength Tab #}
+                    <div x-show="modelTab === 'players'" x-transition>
+                        {% if matchup_analysis %}
+                        <div class="grid grid-cols-2 gap-4 mb-4">
+                            {% for team_key, team_label, color in [('team_a', prediction.team_a, prediction.team_a_color|default('#10B981')), ('team_b', prediction.team_b, prediction.team_b_color|default('#F59E0B'))] %}
+                            <div class="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                                <h4 class="text-xs font-bold uppercase tracking-wider mb-3" style="color: {{ color }}">{{ team_label }}</h4>
+                                <div class="space-y-2">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-xs text-gray-500">Batting Strength</span>
+                                        <span class="text-sm font-bold text-white">{{ '%.2f'|format(matchup_analysis.batting[team_key].batting_strength) }}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-xs text-gray-500">Bowling Strength</span>
+                                        <span class="text-sm font-bold text-white">{{ '%.2f'|format(matchup_analysis.bowling[team_key].bowling_strength) }}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-xs text-gray-500">Powerplay SR</span>
+                                        <span class="text-sm font-bold text-white">{{ '%.1f'|format(matchup_analysis.batting[team_key].powerplay_sr) }}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-xs text-gray-500">Death Economy</span>
+                                        <span class="text-sm font-bold text-white">{{ '%.1f'|format(matchup_analysis.bowling[team_key].death_economy) }}</span>
+                                    </div>
+                                </div>
+                                {% if matchup_analysis.key_players[team_key ~ '_stars'] %}
+                                <div class="mt-3 pt-3 border-t border-white/5">
+                                    <div class="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Key Players</div>
+                                    {% for star in matchup_analysis.key_players[team_key ~ '_stars'][:3] %}
+                                    <div class="flex items-center justify-between text-[11px] py-1">
+                                        <span class="text-gray-300 font-medium">{{ star.name }}</span>
+                                        <span class="text-gray-500">
+                                            {% if star.role in ['batsman', 'wicket-keeper'] %}
+                                            Avg {{ star.batting_avg|default('-') }} | SR {{ star.strike_rate|default('-') }}
+                                            {% elif star.role == 'bowler' %}
+                                            Econ {{ star.economy|default('-') }} | Avg {{ star.bowling_avg|default('-') }}
+                                            {% else %}
+                                            Avg {{ star.batting_avg|default('-') }} | Econ {{ star.economy|default('-') }}
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% if matchup_analysis.venue_matchup and matchup_analysis.venue_matchup.advantage %}
+                        <div class="text-center">
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-gray-400">
+                                {{ matchup_analysis.venue_matchup.reason }}
+                            </span>
+                        </div>
+                        {% endif %}
+                        {% else %}
+                        <div class="text-center py-6">
+                            <svg class="w-8 h-8 mx-auto text-gray-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            <p class="text-xs text-gray-500">Player data not yet available. Run the player stats extractor first.</p>
                         </div>
                         {% endif %}
                     </div>
@@ -492,6 +558,112 @@
 
         </div>
     </div>
+
+    {# ===== FACTOR CARDS — All Triggers Being Monitored ===== #}
+    {% if factor_cards %}
+    <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
+        <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+            All Prediction Factors ({{ factor_cards|length }} triggers)
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {% for card in factor_cards %}
+            <div class="rounded-xl border border-white/10 bg-white/[0.03] p-4 hover:bg-white/[0.06] transition-all">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="w-8 h-8 rounded-lg bg-{{ card.color }}-500/20 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-{{ card.color }}-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {% if card.icon == 'chart-bar' %}
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                            {% elif card.icon == 'trending-up' %}
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                            {% elif card.icon == 'cloud' %}
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/>
+                            {% elif card.icon == 'building' %}
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                            {% elif card.icon == 'arrows-right-left' %}
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                            {% elif card.icon == 'chat-bubble' %}
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>
+                            {% elif card.icon == 'bolt' %}
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                            {% elif card.icon == 'fire' %}
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"/>
+                            {% elif card.icon == 'currency-dollar' %}
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1"/>
+                            {% elif card.icon == 'arrow-path' %}
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                            {% else %}
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            {% endif %}
+                        </svg>
+                    </div>
+                    <h4 class="text-xs font-bold text-white uppercase tracking-wider">{{ card.title }}</h4>
+                </div>
+                <div class="space-y-1.5 mb-3">
+                    {% for item in card.items %}
+                    <div class="flex justify-between text-[11px]">
+                        <span class="text-gray-500">{{ item.label }}</span>
+                        <span class="text-white font-semibold">{{ item.value }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="pt-2 border-t border-white/5">
+                    <span class="text-[10px] font-semibold text-{{ card.color }}-400 uppercase tracking-wider">{{ card.verdict }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# ===== PLAYER CARDS — Squad Comparison ===== #}
+    {% if player_cards %}
+    <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
+        <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+            Squad Comparison (Player Stats from Match Data)
+        </h3>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {% for team_key in ['team_a', 'team_b'] %}
+            {% set team_data = player_cards[team_key] %}
+            {% set color = prediction.team_a_color if team_key == 'team_a' else prediction.team_b_color %}
+            <div class="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                <h4 class="text-xs font-bold uppercase tracking-wider mb-3" style="color: {{ color|default('#10B981') }}">
+                    {{ team_data.team }} ({{ team_data.players|length }} players)
+                </h4>
+                <div class="space-y-2">
+                    {% for player in team_data.players[:11] %}
+                    <div class="flex items-center gap-2 p-2 rounded-lg bg-white/[0.02] hover:bg-white/[0.05] transition-all">
+                        {# Impact badge #}
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold
+                            {% if player.form_indicator == 'elite' %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/30
+                            {% elif player.form_indicator == 'in-form' %}bg-blue-500/20 text-blue-400 border border-blue-500/30
+                            {% elif player.form_indicator == 'steady' %}bg-amber-500/20 text-amber-400 border border-amber-500/30
+                            {% else %}bg-gray-700/50 text-gray-500 border border-gray-600{% endif %}">
+                            {{ player.impact_score|int }}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-xs font-semibold text-white truncate">{{ player.name }}</div>
+                            <div class="text-[10px] text-gray-500">{{ player.key_stat }}</div>
+                        </div>
+                        <div class="text-right">
+                            <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider
+                                {% if player.role == 'batsman' %}bg-blue-500/10 text-blue-400
+                                {% elif player.role == 'bowler' %}bg-red-500/10 text-red-400
+                                {% elif player.role == 'all-rounder' %}bg-purple-500/10 text-purple-400
+                                {% else %}bg-amber-500/10 text-amber-400{% endif %}">
+                                {{ player.role[:3]|upper }}
+                            </span>
+                            <div class="text-[9px] text-gray-600 mt-0.5">{{ player.matches_played }} matches</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 
 </div>
 {% endblock %}

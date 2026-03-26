@@ -8,17 +8,39 @@
 {% endblock %}
 
 {% block page_actions %}
-<div class="flex items-center gap-2" x-data="{ refreshing: false }">
-    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-[11px] font-semibold text-emerald-400">
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-        PSL 2026
+<div class="flex items-center gap-2 flex-wrap" x-data="{ refreshing: false, showLog: false }">
+    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold
+        {% if current_league == 'ipl' %}bg-blue-500/10 border border-blue-500/20 text-blue-400
+        {% else %}bg-emerald-500/10 border border-emerald-500/20 text-emerald-400{% endif %}">
+        <span class="w-1.5 h-1.5 rounded-full {% if current_league == 'ipl' %}bg-blue-400{% else %}bg-emerald-400{% endif %} animate-pulse"></span>
+        {{ league_config.short }} {{ league_config.season }}
     </span>
-    <button @click="refreshing = true; fetch('/api/refresh-data', {method: 'POST'}).then(r => r.json()).then(d => { refreshing = false; window.location.reload(); }).catch(() => { refreshing = false; window.location.reload(); })"
+    <button @click="refreshing = true; fetch('/api/refresh-data', {method: 'POST'}).then(r => r.json()).then(d => { refreshing = false; showLog = true; setTimeout(() => window.location.reload(), 2000); }).catch(() => { refreshing = false; window.location.reload(); })"
             :disabled="refreshing"
             class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-lg text-[11px] font-semibold text-blue-400 transition-all disabled:opacity-50">
         <svg :class="refreshing && 'animate-spin'" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
         <span x-text="refreshing ? 'Refreshing...' : 'Refresh Data'"></span>
     </button>
+    {% if data_refresh_log %}
+    <button @click="showLog = !showLog" class="text-[10px] text-gray-500 hover:text-gray-300 underline underline-offset-2">
+        Last updated
+    </button>
+    {% endif %}
+    {# Data refresh timestamp panel #}
+    <div x-show="showLog" x-transition class="w-full mt-2 rounded-xl border border-white/10 bg-white/5 p-3">
+        <div class="text-[10px] text-gray-500 uppercase tracking-wider font-bold mb-2">API Data Freshness</div>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+            {% for log in data_refresh_log %}
+            <div class="rounded-lg bg-white/[0.03] border border-white/5 p-2">
+                <div class="text-[10px] text-gray-500 uppercase">{{ log.source }}</div>
+                <div class="text-[11px] font-semibold {% if log.status == 'ok' %}text-emerald-400{% else %}text-red-400{% endif %}">
+                    {{ log.refreshed_at[:16]|replace('T', ' ') if log.refreshed_at else 'Never' }}
+                </div>
+                <div class="text-[9px] text-gray-600 truncate" title="{{ log.detail }}">{{ log.detail[:30] if log.detail else '' }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
 </div>
 {% endblock %}
 

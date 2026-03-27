@@ -1,170 +1,245 @@
 {% extends "base.html" %}
-
 {% block title %}Performance{% endblock %}
 {% block page_title %}Model Performance{% endblock %}
 {% block breadcrumb %}<span class="text-gray-600">/</span><span>Performance</span>{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
+{% set summary = summary|default({'accuracy': 0, 'brier': 0, 'roi': 0, 'total': 0, 'correct': 0}) %}
+{% set psl_models = psl_models|default([]) %}
+{% set ipl_models = ipl_models|default([]) %}
 
-  <!-- Summary Cards -->
-  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-    <!-- Accuracy -->
-    <div class="bg-white/5 border border-white/10 rounded-xl p-5">
-      <div class="flex items-center justify-between mb-3">
-        <p class="text-[11px] uppercase tracking-wider text-gray-500">Overall Accuracy</p>
-        <div class="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-          <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        </div>
-      </div>
-      <p class="text-3xl font-extrabold {% if summary.accuracy >= 60 %}text-emerald-400{% elif summary.accuracy >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">
-        {{ '%.1f'|format(summary.accuracy) }}%
-      </p>
-      <div class="mt-2 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-        <div class="h-full rounded-full {% if summary.accuracy >= 60 %}bg-emerald-500{% elif summary.accuracy >= 50 %}bg-amber-500{% else %}bg-red-500{% endif %}" style="width: {{ summary.accuracy }}%"></div>
-      </div>
+{% macro model_display_name(name) -%}
+    {%- if name == 'batting_bowling' -%}Bat/Bowl
+    {%- elif name == 'elo' -%}Elo
+    {%- elif name == 'xgboost' -%}XGBoost
+    {%- elif name == 'sentiment' -%}Sentiment
+    {%- elif name == 'player_strength' -%}Player Strength
+    {%- elif name == 'ensemble' -%}Ensemble
+    {%- else -%}{{ name|capitalize }}
+    {%- endif -%}
+{%- endmacro %}
+
+{% macro model_card(m) %}
+{% set acc = (m.accuracy * 100) if m.accuracy <= 1 else m.accuracy %}
+{% set brier = m.brier|default(0)|float %}
+{% set roi_val = (m.roi * 100) if m.roi is defined and m.roi != 0 and m.roi <= 1 else (m.roi|default(0)|float) %}
+<div class="bg-white/5 border border-white/10 rounded-2xl p-5 hover:border-white/20 transition-colors">
+    <div class="flex items-center justify-between mb-3">
+        <h4 class="text-sm font-bold text-white">{{ model_display_name(m.name) }}</h4>
+        {% if m.name == 'ensemble' %}
+        <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase">Primary</span>
+        {% endif %}
     </div>
 
+    <!-- Accuracy big number -->
+    <p class="text-3xl font-extrabold mb-2 {% if acc >= 60 %}text-emerald-400{% elif acc >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">
+        {{ '%.1f'|format(acc) }}%
+    </p>
+    <p class="text-[10px] text-gray-500 uppercase tracking-wider mb-3">Accuracy</p>
+
     <!-- Brier Score -->
-    <div class="bg-white/5 border border-white/10 rounded-xl p-5">
-      <div class="flex items-center justify-between mb-3">
-        <p class="text-[11px] uppercase tracking-wider text-gray-500">Brier Score</p>
-        <div class="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-          <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-        </div>
-      </div>
-      <p class="text-3xl font-extrabold {% if summary.brier < 0.2 %}text-emerald-400{% elif summary.brier < 0.25 %}text-amber-400{% else %}text-red-400{% endif %}">
-        {{ '%.3f'|format(summary.brier) }}
-      </p>
-      <p class="text-[11px] text-gray-500 mt-1">Lower is better (0 = perfect)</p>
+    <div class="flex items-center justify-between py-2 border-t border-white/5">
+        <span class="text-[10px] uppercase tracking-wider text-gray-500">Brier Score</span>
+        <span class="text-sm font-semibold {% if brier < 0.20 %}text-emerald-400{% elif brier <= 0.50 %}text-gray-400{% else %}text-red-400{% endif %}">
+            {{ '%.3f'|format(brier) }}
+        </span>
     </div>
 
     <!-- ROI -->
-    <div class="bg-white/5 border border-white/10 rounded-xl p-5">
-      <div class="flex items-center justify-between mb-3">
-        <p class="text-[11px] uppercase tracking-wider text-gray-500">Model ROI</p>
-        <div class="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
-          <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    <div class="flex items-center justify-between py-2 border-t border-white/5">
+        <span class="text-[10px] uppercase tracking-wider text-gray-500">ROI</span>
+        <span class="text-sm font-semibold {% if roi_val > 0 %}text-emerald-400{% elif roi_val < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
+            {{ '%+.1f'|format(roi_val) }}%
+        </span>
+    </div>
+
+    <!-- Predictions count -->
+    <div class="flex items-center justify-between py-2 border-t border-white/5">
+        <span class="text-[10px] uppercase tracking-wider text-gray-500">Predictions</span>
+        <span class="text-sm font-semibold text-gray-300">{{ m.predictions|default(0) }}</span>
+    </div>
+</div>
+{% endmacro %}
+
+<div class="space-y-6">
+
+    <!-- 1. Overall Summary Hero -->
+    <div class="bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/20 rounded-2xl p-5">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+                <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Overall Accuracy</p>
+                <p class="text-3xl font-extrabold {% if summary.accuracy >= 60 %}text-emerald-400{% elif summary.accuracy >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">
+                    {{ '%.1f'|format(summary.accuracy) }}%
+                </p>
+                <div class="mt-2 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full {% if summary.accuracy >= 60 %}bg-emerald-500{% elif summary.accuracy >= 50 %}bg-amber-500{% else %}bg-red-500{% endif %}" style="width: {{ [summary.accuracy, 100]|min }}%"></div>
+                </div>
+            </div>
+            <div>
+                <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Brier Score</p>
+                <p class="text-3xl font-extrabold {% if summary.brier < 0.20 %}text-emerald-400{% elif summary.brier < 0.25 %}text-amber-400{% else %}text-red-400{% endif %}">
+                    {{ '%.3f'|format(summary.brier) }}
+                </p>
+                <p class="text-[10px] text-gray-500 mt-1">Lower is better (0 = perfect)</p>
+            </div>
+            <div>
+                <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">ROI</p>
+                <p class="text-3xl font-extrabold {% if summary.roi > 0 %}text-emerald-400{% elif summary.roi < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
+                    {{ '%+.1f'|format(summary.roi) }}%
+                </p>
+                <p class="text-[10px] text-gray-500 mt-1">Return on investment</p>
+            </div>
+            <div>
+                <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Total Predictions</p>
+                <p class="text-3xl font-extrabold text-white">{{ summary.total }}</p>
+                <p class="text-[10px] text-gray-500 mt-1">{{ summary.correct }} correct</p>
+            </div>
         </div>
-      </div>
-      <p class="text-3xl font-extrabold {% if summary.roi > 0 %}text-emerald-400{% elif summary.roi == 0 %}text-gray-400{% else %}text-red-400{% endif %}">
-        {{ '%+.1f'|format(summary.roi) }}%
-      </p>
-      <p class="text-[11px] text-gray-500 mt-1">Return on investment</p>
     </div>
-  </div>
 
-  <!-- Per-Model Breakdown -->
-  {% if models %}
-  <div class="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-    <div class="px-5 py-4 border-b border-white/5">
-      <h2 class="text-sm font-bold text-white">Model Breakdown</h2>
+    <!-- 2. PSL Section -->
+    {% if psl_models %}
+    <div>
+        <div class="flex items-center gap-3 mb-4">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+            <h2 class="text-base font-bold text-white">Pakistan Super League</h2>
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">PSL</span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for m in psl_models %}
+            {{ model_card(m) }}
+            {% endfor %}
+        </div>
     </div>
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="border-b border-white/5">
-            <th class="text-left px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Model</th>
-            <th class="text-right px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Accuracy</th>
-            <th class="text-right px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Brier</th>
-            <th class="text-right px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Predictions</th>
-            <th class="text-center px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Status</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-white/5">
-          {% for m in models %}
-          <tr class="hover:bg-white/[0.02] transition-colors">
-            <td class="px-5 py-3">
-              <span class="font-medium text-white">{{ m.name }}</span>
-            </td>
-            <td class="px-5 py-3 text-right">
-              <span class="font-semibold {% if m.accuracy >= 60 %}text-emerald-400{% elif m.accuracy >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">
-                {{ '%.1f'|format(m.accuracy) }}%
-              </span>
-            </td>
-            <td class="px-5 py-3 text-right text-gray-400">{{ '%.3f'|format(m.brier) }}</td>
-            <td class="px-5 py-3 text-right text-gray-400">{{ m.predictions }}</td>
-            <td class="px-5 py-3 text-center">
-              <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold
-                {% if m.status == 'active' %}bg-emerald-500/10 text-emerald-400{% else %}bg-amber-500/10 text-amber-400{% endif %}">
-                <span class="w-1.5 h-1.5 rounded-full {% if m.status == 'active' %}bg-emerald-400{% else %}bg-amber-400{% endif %}"></span>
-                {{ m.status|capitalize }}
-              </span>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-  {% endif %}
+    {% endif %}
 
-  <!-- Recent Predictions -->
-  {% if recent_predictions %}
-  <div class="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-    <div class="px-5 py-4 border-b border-white/5">
-      <h2 class="text-sm font-bold text-white">Recent Predictions</h2>
+    <!-- 3. IPL Section -->
+    {% if ipl_models %}
+    <div>
+        <div class="flex items-center gap-3 mb-4">
+            <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+            <h2 class="text-base font-bold text-white">Indian Premier League</h2>
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-blue-500/15 text-blue-400 border border-blue-500/20">IPL</span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for m in ipl_models %}
+            {{ model_card(m) }}
+            {% endfor %}
+        </div>
     </div>
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="border-b border-white/5">
-            <th class="text-left px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Date</th>
-            <th class="text-left px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Match</th>
-            <th class="text-left px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Predicted</th>
-            <th class="text-right px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Prob</th>
-            <th class="text-left px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Actual</th>
-            <th class="text-center px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Result</th>
-            <th class="text-right px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">P&L</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-white/5">
-          {% for p in recent_predictions %}
-          <tr class="hover:bg-white/[0.02] transition-colors">
-            <td class="px-5 py-3 text-gray-400 whitespace-nowrap">{{ p.date }}</td>
-            <td class="px-5 py-3 text-white font-medium whitespace-nowrap">{{ p.match }}</td>
-            <td class="px-5 py-3 text-gray-300 whitespace-nowrap">{{ p.predicted }}</td>
-            <td class="px-5 py-3 text-right text-gray-300">{{ '%.1f'|format(p.probability) }}%</td>
-            <td class="px-5 py-3 text-gray-300 whitespace-nowrap">{{ p.actual or '-' }}</td>
-            <td class="px-5 py-3 text-center">
-              {% if p.actual %}
-                {% if p.correct %}
-                  <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500/15 text-emerald-400">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
-                  </span>
-                {% else %}
-                  <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-500/15 text-red-400">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/></svg>
-                  </span>
-                {% endif %}
-              {% else %}
-                <span class="text-gray-600">--</span>
-              {% endif %}
-            </td>
-            <td class="px-5 py-3 text-right whitespace-nowrap">
-              {% if p.pnl is not none %}
-                <span class="font-semibold {% if p.pnl > 0 %}text-emerald-400{% elif p.pnl < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
-                  {{ '%+.1f'|format(p.pnl) }}
-                </span>
-              {% else %}
-                <span class="text-gray-600">--</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-  {% endif %}
+    {% endif %}
 
-  <!-- Calibration Chart -->
-  {% if calibration %}
-  <div class="bg-white/5 border border-white/10 rounded-xl p-5">
-    <h2 class="text-sm font-bold text-white mb-4">Calibration</h2>
-    <canvas id="calibrationChart" height="200"></canvas>
-  </div>
-  {% endif %}
+    <!-- Legacy: Per-Model Table (if models passed but no psl/ipl split) -->
+    {% if models and not psl_models and not ipl_models %}
+    <div class="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-white/5">
+            <h2 class="text-sm font-bold text-white">Model Breakdown</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-white/5">
+                        <th class="text-left px-5 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Model</th>
+                        <th class="text-right px-5 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Accuracy</th>
+                        <th class="text-right px-5 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Brier</th>
+                        <th class="text-right px-5 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Predictions</th>
+                        <th class="text-center px-5 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-white/5">
+                    {% for m in models %}
+                    <tr class="hover:bg-white/[0.02] transition-colors">
+                        <td class="px-5 py-3"><span class="font-medium text-white">{{ model_display_name(m.name) }}</span></td>
+                        <td class="px-5 py-3 text-right">
+                            <span class="font-semibold {% if m.accuracy >= 60 %}text-emerald-400{% elif m.accuracy >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">
+                                {{ '%.1f'|format(m.accuracy) }}%
+                            </span>
+                        </td>
+                        <td class="px-5 py-3 text-right">
+                            <span class="{% if m.brier < 0.20 %}text-emerald-400{% elif m.brier <= 0.50 %}text-gray-400{% else %}text-red-400{% endif %}">{{ '%.3f'|format(m.brier) }}</span>
+                        </td>
+                        <td class="px-5 py-3 text-right text-gray-400">{{ m.predictions }}</td>
+                        <td class="px-5 py-3 text-center">
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold
+                                {% if m.status == 'active' %}bg-emerald-500/10 text-emerald-400{% else %}bg-amber-500/10 text-amber-400{% endif %}">
+                                <span class="w-1.5 h-1.5 rounded-full {% if m.status == 'active' %}bg-emerald-400{% else %}bg-amber-400{% endif %}"></span>
+                                {{ m.status|capitalize }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent Predictions -->
+    {% if recent_predictions %}
+    <div class="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-white/5">
+            <h2 class="text-sm font-bold text-white">Recent Predictions</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-white/5">
+                        <th class="text-left px-5 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Date</th>
+                        <th class="text-left px-5 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Match</th>
+                        <th class="text-left px-5 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Predicted</th>
+                        <th class="text-right px-5 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Prob</th>
+                        <th class="text-left px-5 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Actual</th>
+                        <th class="text-center px-5 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Result</th>
+                        <th class="text-right px-5 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">P&L</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-white/5">
+                    {% for p in recent_predictions %}
+                    <tr class="hover:bg-white/[0.02] transition-colors">
+                        <td class="px-5 py-3 text-gray-400 whitespace-nowrap text-xs">{{ p.date }}</td>
+                        <td class="px-5 py-3 text-white font-medium whitespace-nowrap text-xs">{{ p.match }}</td>
+                        <td class="px-5 py-3 text-gray-300 whitespace-nowrap text-xs">{{ p.predicted }}</td>
+                        <td class="px-5 py-3 text-right text-gray-300 text-xs">{{ '%.1f'|format(p.probability) }}%</td>
+                        <td class="px-5 py-3 text-gray-300 whitespace-nowrap text-xs">{{ p.actual or '-' }}</td>
+                        <td class="px-5 py-3 text-center">
+                            {% if p.actual %}
+                                {% if p.correct %}
+                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500/15 text-emerald-400">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                                </span>
+                                {% else %}
+                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-500/15 text-red-400">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </span>
+                                {% endif %}
+                            {% else %}
+                            <span class="text-gray-600">--</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-5 py-3 text-right whitespace-nowrap text-xs">
+                            {% if p.pnl is not none %}
+                            <span class="font-semibold {% if p.pnl > 0 %}text-emerald-400{% elif p.pnl < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
+                                {{ '%+.1f'|format(p.pnl) }}
+                            </span>
+                            {% else %}
+                            <span class="text-gray-600">--</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Calibration Chart -->
+    {% if calibration %}
+    <div class="bg-white/5 border border-white/10 rounded-2xl p-5">
+        <h2 class="text-sm font-bold text-white mb-4">Calibration</h2>
+        <canvas id="calibrationChart" height="200"></canvas>
+    </div>
+    {% endif %}
 
 </div>
 {% endblock %}
@@ -173,39 +248,39 @@
 {% if calibration %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  const ctx = document.getElementById('calibrationChart').getContext('2d');
-  const data = {{ calibration|tojson }};
-  new Chart(ctx, {
-    type: 'scatter',
-    data: {
-      datasets: [
-        {
-          label: 'Model',
-          data: data.map(d => ({x: d.predicted, y: d.actual})),
-          backgroundColor: '#10B981',
-          borderColor: '#10B981',
-          pointRadius: 5,
+    const ctx = document.getElementById('calibrationChart').getContext('2d');
+    const data = {{ calibration|tojson }};
+    new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [
+                {
+                    label: 'Model',
+                    data: data.map(d => ({x: d.predicted, y: d.actual})),
+                    backgroundColor: '#10B981',
+                    borderColor: '#10B981',
+                    pointRadius: 5,
+                },
+                {
+                    label: 'Perfect',
+                    data: [{x:0,y:0},{x:1,y:1}],
+                    type: 'line',
+                    borderColor: 'rgba(255,255,255,0.15)',
+                    borderDash: [5,5],
+                    pointRadius: 0,
+                    fill: false,
+                }
+            ]
         },
-        {
-          label: 'Perfect',
-          data: [{x:0,y:0},{x:1,y:1}],
-          type: 'line',
-          borderColor: 'rgba(255,255,255,0.15)',
-          borderDash: [5,5],
-          pointRadius: 0,
-          fill: false,
+        options: {
+            responsive: true,
+            scales: {
+                x: { title: { display: true, text: 'Predicted', color: '#9CA3AF' }, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6B7280' } },
+                y: { title: { display: true, text: 'Actual', color: '#9CA3AF' }, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6B7280' } }
+            },
+            plugins: { legend: { labels: { color: '#9CA3AF' } } }
         }
-      ]
-    },
-    options: {
-      responsive: true,
-      scales: {
-        x: { title: { display: true, text: 'Predicted', color: '#9CA3AF' }, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6B7280' } },
-        y: { title: { display: true, text: 'Actual', color: '#9CA3AF' }, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6B7280' } }
-      },
-      plugins: { legend: { labels: { color: '#9CA3AF' } } }
-    }
-  });
+    });
 });
 </script>
 {% endif %}

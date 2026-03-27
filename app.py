@@ -1328,10 +1328,14 @@ def performance():
         [league]
     )
 
+    total_preds = overall.get("total_predictions", 0) or 0 if overall else 0
+    raw_accuracy = (overall.get("accuracy", 0) or 0) if overall else 0
     summary = {
-        "accuracy": (overall.get("accuracy", 0) or 0) * 100 if overall else 0,
+        "accuracy": raw_accuracy * 100,
         "brier": overall.get("brier_score", 0) or 0 if overall else 0,
         "roi": (overall.get("roi", 0) or 0) * 100 if overall else 0,
+        "total": total_preds,
+        "correct": int(raw_accuracy * total_preds),
     }
 
     # Per-model breakdown
@@ -1375,12 +1379,31 @@ def performance():
     # Calibration data (empty array if not available)
     calibration = []
 
+    # Per-league model cards
+    psl_models = []
+    ipl_models = []
+    for league_key, league_models_list in [("psl", psl_models), ("ipl", ipl_models)]:
+        for model_name in ["batting_bowling", "elo", "xgboost", "sentiment", "player_strength", "ensemble"]:
+            perf = db.fetch_one(
+                "SELECT * FROM model_performance WHERE model_name = ? AND league = ? AND period = 'overall'",
+                [model_name, league_key]
+            )
+            league_models_list.append({
+                "name": model_name,
+                "accuracy": perf.get("accuracy", 0) if perf else 0,
+                "brier": perf.get("brier_score", 0) if perf else 0,
+                "roi": perf.get("roi", 0) if perf else 0,
+                "predictions": perf.get("total_predictions", 0) if perf else 0,
+            })
+
     return render_template(
         "performance.html",
         summary=summary,
         models=models,
         recent_predictions=recent_predictions,
         calibration=calibration,
+        psl_models=psl_models,
+        ipl_models=ipl_models,
     )
 
 
@@ -1439,8 +1462,11 @@ def portfolio():
     bets = []
     for b in raw_bets:
         bets.append({
+            "id": b.get("id"),
             "date": b.get("match_date", ""),
             "match": f"{b.get('team_a', '')} vs {b.get('team_b', '')}",
+            "team_a": b.get("team_a", ""),
+            "team_b": b.get("team_b", ""),
             "bet_type": b.get("bet_type", ""),
             "selection": b.get("selection", ""),
             "stake": b.get("stake", 0) or 0,
@@ -1448,6 +1474,63 @@ def portfolio():
             "status": b.get("status", "pending"),
             "pnl": b.get("actual_pnl"),
         })
+
+    # Split bets
+    pending_bets = [b for b in bets if b["status"] == "pending"]
+    settled_bets = [b for b in bets if b["status"] in ("won", "lost", "void")]
+
+    # Computed stats
+    won_count = sum(1 for b in settled_bets if b["status"] == "won")
+    lost_count = sum(1 for b in settled_bets if b["status"] == "lost")
+    win_rate = (won_count / (won_count + lost_count) * 100) if (won_count + lost_count) > 0 else 0
+    total_staked = sum(b["stake"] for b in settled_bets)
+    avg_stake = (total_staked / len(settled_bets)) if settled_bets else 0
+    avg_odds = (sum(b["odds"] for b in settled_bets) / len(settled_bets)) if settled_bets else 0
+    best_win = max((b.get("pnl") or 0 for b in settled_bets), default=0)
+    worst_loss = min((b.get("pnl") or 0 for b in settled_bets), default=0)
+
+    # Streak
+    bet_streak_type, bet_streak_length = "N", 0
+    for b in settled_bets:
+        if b["status"] not in ("won", "lost"):
+            continue
+        is_win = b["status"] == "won"
+        if bet_streak_length == 0:
+            bet_streak_type = "W" if is_win else "L"
+            bet_streak_length = 1
+        elif (bet_streak_type == "W" and is_win) or (bet_streak_type == "L" and not is_win):
+            bet_streak_length += 1
+        else:
+            break
+
+    bet_stats = {
+        "won": won_count,
+        "lost": lost_count,
+        "win_rate": round(win_rate, 1),
+        "total_staked": round(total_staked, 2),
+        "avg_stake": round(avg_stake, 2),
+        "avg_odds": round(avg_odds, 2),
+        "best_win": round(best_win, 2),
+        "worst_loss": round(worst_loss, 2),
+        "streak": f"{bet_streak_type}{bet_streak_length}",
+    }
+
+    # "All Time" aggregate across all portfolios when no specific one selected
+    if not requested_id:
+        all_bets_raw = db.fetch_all("SELECT stake, odds, actual_pnl, status FROM user_bets")
+        all_settled = [b for b in all_bets_raw if b.get("status") in ("won", "lost", "void")]
+        all_time_pnl = sum(b.get("actual_pnl", 0) or 0 for b in all_settled)
+        all_time_staked = sum(b.get("stake", 0) or 0 for b in all_settled)
+        all_time_roi = (all_time_pnl / all_time_staked * 100) if all_time_staked > 0 else 0
+        all_time = {
+            "total_bets": len(all_bets_raw),
+            "settled": len(all_settled),
+            "pnl": round(all_time_pnl, 2),
+            "staked": round(all_time_staked, 2),
+            "roi": round(all_time_roi, 1),
+        }
+    else:
+        all_time = None
 
     # Upcoming matches for the bet form
     upcoming_fixtures = db.fetch_all(
@@ -1468,6 +1551,10 @@ def portfolio():
         portfolio=portfolio_data,
         all_portfolios=all_portfolios,
         bets=bets,
+        pending_bets=pending_bets,
+        settled_bets=settled_bets,
+        bet_stats=bet_stats,
+        all_time=all_time,
         upcoming_matches=upcoming_matches,
     )
 
@@ -1575,6 +1662,52 @@ def close_portfolio(pid):
     return redirect(url_for("portfolio"))
 
 
+@app.route("/portfolio/edit/<int:pid>", methods=["POST"])
+@login_required
+def edit_portfolio(pid):
+    name = request.form.get("name")
+    bankroll = request.form.get("bankroll")
+    if name:
+        db.execute("UPDATE portfolios SET name = ? WHERE id = ?", [name, pid])
+    if bankroll:
+        db.execute("UPDATE portfolios SET bankroll = ? WHERE id = ?", [float(bankroll), pid])
+    flash("Portfolio updated.", "success")
+    return redirect(url_for("portfolio", id=pid))
+
+
+@app.route("/portfolio/delete/<int:pid>", methods=["POST"])
+@login_required
+def delete_portfolio(pid):
+    db.execute("DELETE FROM user_bets WHERE portfolio_id = ?", [pid])
+    db.execute("DELETE FROM portfolios WHERE id = ?", [pid])
+    flash("Portfolio deleted.", "success")
+    return redirect(url_for("portfolio"))
+
+
+@app.route("/portfolio/edit-bet/<int:bet_id>", methods=["POST"])
+@login_required
+def edit_bet(bet_id):
+    stake = request.form.get("stake")
+    odds = request.form.get("odds")
+    selection = request.form.get("selection")
+    if stake:
+        db.execute("UPDATE user_bets SET stake = ? WHERE id = ? AND status = 'pending'", [float(stake), bet_id])
+    if odds:
+        db.execute("UPDATE user_bets SET odds = ? WHERE id = ? AND status = 'pending'", [float(odds), bet_id])
+    if selection:
+        db.execute("UPDATE user_bets SET selection = ? WHERE id = ? AND status = 'pending'", [selection, bet_id])
+    flash("Bet updated.", "success")
+    return redirect(url_for("portfolio"))
+
+
+@app.route("/portfolio/delete-bet/<int:bet_id>", methods=["POST"])
+@login_required
+def delete_bet(bet_id):
+    db.execute("DELETE FROM user_bets WHERE id = ? AND status = 'pending'", [bet_id])
+    flash("Bet deleted.", "success")
+    return redirect(url_for("portfolio"))
+
+
 # ---------------------------------------------------------------------------
 # TRACKER
 # ---------------------------------------------------------------------------
@@ -1583,77 +1716,117 @@ def close_portfolio(pid):
 @login_required
 def tracker():
     """Prediction tracker — accuracy, ROI, streaks."""
+    from collections import defaultdict
+
     league = _current_league()
-    all_tracked = db.fetch_all(
-        "SELECT * FROM model_tracker WHERE league = ? ORDER BY match_date DESC",
-        [league]
+
+    # Fetch all tracker entries
+    all_entries = db.fetch_all(
+        "SELECT * FROM model_tracker WHERE league = ? ORDER BY match_date DESC", [league]
     )
 
-    settled = [t for t in all_tracked if t.get("status") == "settled"]
-    pending_list = [t for t in all_tracked if t.get("status") == "pending"]
+    settled = [e for e in all_entries if e["status"] == "settled"]
+    pending = [e for e in all_entries if e["status"] == "pending"]
 
+    # Hero metrics
+    correct = sum(1 for e in settled if e.get("top_pick_correct") == 1)
     total_settled = len(settled)
-    correct_count = sum(1 for s in settled if s.get("top_pick_correct") == 1)
-    accuracy = (correct_count / total_settled * 100) if total_settled > 0 else 0
+    accuracy = (correct / total_settled * 100) if total_settled > 0 else 0
+    total_pnl = sum(e.get("top_pick_pnl", 0) or 0 for e in settled)
+    total_staked = total_settled * 100
+    roi = (total_pnl / total_staked * 100) if total_staked > 0 else 0
 
-    # Top pick ROI
-    top_pick_pnl_total = sum(s.get("top_pick_pnl", 0) or 0 for s in settled)
-    top_pick_roi = top_pick_pnl_total  # simplified ROI
-
-    # Value bet stats
-    vb_settled = [s for s in settled if s.get("is_value_bet") == 1]
-    vb_correct = sum(1 for s in vb_settled if s.get("value_bet_correct") == 1)
-    vb_accuracy = (vb_correct / len(vb_settled) * 100) if vb_settled else 0
-    vb_pnl_total = sum(s.get("value_bet_pnl", 0) or 0 for s in vb_settled)
-    vb_roi = vb_pnl_total  # simplified
-
-    # Streak (consecutive correct/incorrect)
-    streak_count = 0
-    streak_type = ""
-    for s in settled:
-        is_correct = s.get("top_pick_correct") == 1
-        if not streak_type:
-            streak_type = "W" if is_correct else "L"
-            streak_count = 1
-        elif (streak_type == "W" and is_correct) or (streak_type == "L" and not is_correct):
-            streak_count += 1
+    # Streak
+    streak_type, streak_length = "N", 0
+    for e in sorted(settled, key=lambda x: x["match_date"], reverse=True):
+        was_correct = e.get("top_pick_correct") == 1
+        if streak_length == 0:
+            streak_type = "W" if was_correct else "L"
+            streak_length = 1
+        elif (streak_type == "W" and was_correct) or (streak_type == "L" and not was_correct):
+            streak_length += 1
         else:
             break
 
-    # tracker_summary — what the template expects
-    tracker_summary = {
-        "top_pick_accuracy": round(accuracy, 1),
-        "top_pick_roi": round(top_pick_roi, 1),
-        "value_bet_accuracy": round(vb_accuracy, 1),
-        "value_bet_roi": round(vb_roi, 1),
-        "streak_count": streak_count,
-        "streak_type": streak_type if streak_type else "-",
-        "total": len(all_tracked),
-        "settled": total_settled,
-        "pending": len(pending_list),
-    }
+    # Value bets strategy
+    vb_settled = [e for e in settled if e.get("is_value_bet") == 1]
+    vb_correct = sum(1 for e in vb_settled if e.get("value_bet_correct") == 1)
+    vb_accuracy = (vb_correct / len(vb_settled) * 100) if vb_settled else 0
+    vb_pnl = sum(e.get("value_bet_pnl", 0) or 0 for e in vb_settled)
+    vb_staked = len(vb_settled) * 100
+    vb_roi = (vb_pnl / vb_staked * 100) if vb_staked > 0 else 0
+    vb_avg_edge = (sum(e.get("value_edge", 0) or 0 for e in vb_settled) / len(vb_settled)) if vb_settled else 0
 
-    # predictions list for the table — template expects each item to have:
-    # date, team_a, team_b, predicted_winner, probability, actual_winner, correct, pnl, status
-    predictions = []
-    for t in all_tracked:
-        prob = max(t.get("team_a_prob", 0.5) or 0.5, t.get("team_b_prob", 0.5) or 0.5) * 100
-        predictions.append({
-            "date": t.get("match_date", ""),
-            "team_a": t.get("team_a", ""),
-            "team_b": t.get("team_b", ""),
-            "predicted_winner": t.get("predicted_winner", ""),
-            "probability": prob,
-            "actual_winner": t.get("actual_winner", ""),
-            "correct": bool(t.get("top_pick_correct")),
-            "pnl": t.get("top_pick_pnl"),
-            "status": t.get("status", "pending"),
-        })
+    # Outcome breakdown (team_a vs team_b picks)
+    team_a_picks = [e for e in settled if e.get("predicted_winner") == e.get("team_a")]
+    team_b_picks = [e for e in settled if e.get("predicted_winner") == e.get("team_b")]
+    team_a_correct = sum(1 for e in team_a_picks if e.get("top_pick_correct") == 1)
+    team_b_correct = sum(1 for e in team_b_picks if e.get("top_pick_correct") == 1)
 
-    return render_template(
-        "tracker.html",
-        tracker_summary=tracker_summary,
-        predictions=predictions,
+    # Weekly report
+    weekly = defaultdict(lambda: {"correct": 0, "total": 0, "pnl": 0, "vb_correct": 0, "vb_total": 0})
+    for e in settled:
+        try:
+            d = datetime.strptime(e["match_date"][:10], "%Y-%m-%d")
+            week_start = d - timedelta(days=d.weekday())
+            week_label = week_start.strftime("Week of %b %d")
+        except Exception:
+            week_label = "Unknown"
+        weekly[week_label]["total"] += 1
+        weekly[week_label]["pnl"] += e.get("top_pick_pnl", 0) or 0
+        if e.get("top_pick_correct") == 1:
+            weekly[week_label]["correct"] += 1
+        if e.get("is_value_bet") == 1:
+            weekly[week_label]["vb_total"] += 1
+            if e.get("value_bet_correct") == 1:
+                weekly[week_label]["vb_correct"] += 1
+
+    weekly_report = []
+    for label, data in sorted(weekly.items(), reverse=True):
+        data["week"] = label
+        data["accuracy"] = (data["correct"] / data["total"] * 100) if data["total"] > 0 else 0
+        weekly_report.append(data)
+
+    # Best/worst month
+    monthly = defaultdict(lambda: {"correct": 0, "total": 0, "pnl": 0})
+    for e in settled:
+        month = e["match_date"][:7]
+        monthly[month]["total"] += 1
+        monthly[month]["pnl"] += e.get("top_pick_pnl", 0) or 0
+        if e.get("top_pick_correct") == 1:
+            monthly[month]["correct"] += 1
+
+    best_month = max(monthly.items(), key=lambda x: x[1]["pnl"], default=(None, {"pnl": 0}))
+    worst_month = min(monthly.items(), key=lambda x: x[1]["pnl"], default=(None, {"pnl": 0}))
+
+    # Build match list with details
+    matches = []
+    for e in all_entries:
+        match = dict(e)
+        match["pnl_display"] = f"${e.get('top_pick_pnl', 0) or 0:+.0f}" if e["status"] == "settled" else "-"
+        match["is_correct"] = e.get("top_pick_correct") == 1
+        matches.append(match)
+
+    return render_template("tracker.html",
+        hero={"accuracy": round(accuracy, 1), "correct": correct, "total": total_settled,
+              "pnl": round(total_pnl, 2), "roi": round(roi, 1), "pending": len(pending),
+              "streak": f"{streak_type}{streak_length}"},
+        every_game={"matches": total_settled, "correct": correct,
+                    "accuracy": round(accuracy, 1), "staked": total_staked,
+                    "pnl": round(total_pnl, 2), "roi": round(roi, 1),
+                    "streak": f"{streak_type}{streak_length}"},
+        value_bets={"matches": len(vb_settled), "correct": vb_correct,
+                    "accuracy": round(vb_accuracy, 1), "staked": vb_staked,
+                    "pnl": round(vb_pnl, 2), "roi": round(vb_roi, 1),
+                    "avg_edge": round(vb_avg_edge, 1)},
+        outcome={"team_a": {"correct": team_a_correct, "total": len(team_a_picks),
+                            "accuracy": round(team_a_correct/len(team_a_picks)*100, 1) if team_a_picks else 0},
+                 "team_b": {"correct": team_b_correct, "total": len(team_b_picks),
+                            "accuracy": round(team_b_correct/len(team_b_picks)*100, 1) if team_b_picks else 0}},
+        weekly_report=weekly_report,
+        best_month={"month": best_month[0], "pnl": round(best_month[1]["pnl"], 2)} if best_month[0] else None,
+        worst_month={"month": worst_month[0], "pnl": round(worst_month[1]["pnl"], 2)} if worst_month[0] else None,
+        matches=matches,
     )
 
 
@@ -2339,8 +2512,14 @@ def api_tracker_settle():
         actual_total_a = match_row.get("innings1_runs") if match_row else None
         actual_total_b = match_row.get("innings2_runs") if match_row else None
 
-        # P&L for value bets
-        top_pick_pnl = 0.0
+        # P&L: top pick uses fair odds from predicted probability
+        predicted_prob = max(entry.get("team_a_prob", 0.5) or 0.5, entry.get("team_b_prob", 0.5) or 0.5)
+        if correct:
+            top_pick_pnl = 100 * (1 / predicted_prob) - 100  # fair odds profit
+        else:
+            top_pick_pnl = -100.0
+
+        # Value bet P&L uses actual bookmaker odds
         value_bet_correct = None
         value_bet_pnl = None
 
@@ -2353,10 +2532,11 @@ def api_tracker_settle():
             else:
                 value_bet_correct = correct
 
+            value_odds = entry.get("value_odds", 0) or 0
             if value_bet_correct:
-                value_bet_pnl = (entry.get("value_odds", 0) or 0) - 1
+                value_bet_pnl = 100 * value_odds - 100  # $100 stake at bookmaker odds
             else:
-                value_bet_pnl = -1.0
+                value_bet_pnl = -100.0
 
         db.execute(
             """UPDATE model_tracker SET

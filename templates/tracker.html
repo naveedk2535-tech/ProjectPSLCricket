@@ -1,146 +1,336 @@
 {% extends "base.html" %}
-
 {% block title %}Tracker{% endblock %}
-{% block page_title %}Prediction Tracker{% endblock %}
+{% block page_title %}Model Tracker{% endblock %}
 {% block breadcrumb %}<span class="text-gray-600">/</span><span>Tracker</span>{% endblock %}
 
 {% block content %}
-<div class="space-y-6" x-data="{ filterStatus: 'all' }">
+{% set hero = hero|default({'accuracy': 0, 'correct': 0, 'total': 0, 'pnl': 0, 'roi': 0, 'pending': 0, 'streak': '0'}) %}
+{% set every_game = every_game|default({'matches': 0, 'correct': 0, 'accuracy': 0, 'staked': 0, 'pnl': 0, 'roi': 0, 'streak': '0'}) %}
+{% set value_bets = value_bets|default({'matches': 0, 'correct': 0, 'accuracy': 0, 'staked': 0, 'pnl': 0, 'roi': 0, 'avg_edge': 0}) %}
+{% set outcome = outcome|default({'team_a': {'correct': 0, 'total': 0, 'accuracy': 0}, 'team_b': {'correct': 0, 'total': 0, 'accuracy': 0}}) %}
+{% set weekly_report = weekly_report|default([]) %}
+{% set matches = matches|default([]) %}
 
-  <!-- Summary Cards -->
-  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-    <!-- Top Pick Accuracy -->
-    <div class="bg-white/5 border border-white/10 rounded-xl p-4">
-      <p class="text-[11px] uppercase tracking-wider text-gray-500 mb-1">Top Pick Accuracy</p>
-      <p class="text-2xl font-extrabold {% if tracker_summary.top_pick_accuracy >= 60 %}text-emerald-400{% elif tracker_summary.top_pick_accuracy >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">
-        {{ tracker_summary.top_pick_accuracy }}%
-      </p>
-      <div class="mt-2 h-1 bg-gray-800 rounded-full overflow-hidden">
-        <div class="h-full rounded-full {% if tracker_summary.top_pick_accuracy >= 60 %}bg-emerald-500{% elif tracker_summary.top_pick_accuracy >= 50 %}bg-amber-500{% else %}bg-red-500{% endif %}"
-          style="width: {{ tracker_summary.top_pick_accuracy }}%"></div>
-      </div>
+<div class="space-y-6" x-data="{ filter: 'all' }">
+
+    <!-- 1. Hero Bar -->
+    <div class="bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/20 rounded-2xl p-5">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div>
+                <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Accuracy</p>
+                <p class="text-3xl font-extrabold {% if hero.accuracy >= 60 %}text-emerald-400{% elif hero.accuracy >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">{{ '%.1f'|format(hero.accuracy) }}%</p>
+            </div>
+            <div>
+                <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Correct / Total</p>
+                <p class="text-xl font-bold text-white">{{ hero.correct }} <span class="text-gray-500 text-sm font-normal">/ {{ hero.total }}</span></p>
+            </div>
+            <div>
+                <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">P&L</p>
+                <p class="text-xl font-bold {% if hero.pnl > 0 %}text-emerald-400{% elif hero.pnl < 0 %}text-red-400{% else %}text-gray-400{% endif %}">${{ '%+.0f'|format(hero.pnl) }}</p>
+            </div>
+            <div>
+                <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">ROI</p>
+                <p class="text-xl font-bold {% if hero.roi > 0 %}text-emerald-400{% elif hero.roi < 0 %}text-red-400{% else %}text-gray-400{% endif %}">{{ '%+.1f'|format(hero.roi) }}%</p>
+            </div>
+            <div>
+                <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Pending</p>
+                <p class="text-xl font-bold text-amber-400">{{ hero.pending }}</p>
+            </div>
+            <div>
+                <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Streak</p>
+                <p class="text-xl font-bold {% if hero.streak[:1] == 'W' %}text-emerald-400{% elif hero.streak[:1] == 'L' %}text-red-400{% else %}text-gray-400{% endif %}">{{ hero.streak }}</p>
+            </div>
+        </div>
     </div>
 
-    <!-- Top Pick ROI -->
-    <div class="bg-white/5 border border-white/10 rounded-xl p-4">
-      <p class="text-[11px] uppercase tracking-wider text-gray-500 mb-1">Top Pick ROI</p>
-      <p class="text-2xl font-extrabold {% if tracker_summary.top_pick_roi > 0 %}text-emerald-400{% elif tracker_summary.top_pick_roi < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
-        {{ '%+.1f'|format(tracker_summary.top_pick_roi) }}
-      </p>
+    <!-- 2. Strategy Comparison -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Every Game -->
+        <div class="bg-white/5 border border-white/10 rounded-2xl p-5">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-sm font-bold text-white">Every Game</h3>
+                <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">ALL PICKS</span>
+            </div>
+            <div class="grid grid-cols-3 gap-3 mb-3">
+                <div>
+                    <p class="text-[10px] uppercase tracking-wider text-gray-500">Matches</p>
+                    <p class="text-lg font-bold text-white">{{ every_game.matches }}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] uppercase tracking-wider text-gray-500">Correct</p>
+                    <p class="text-lg font-bold text-white">{{ every_game.correct }}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] uppercase tracking-wider text-gray-500">Accuracy</p>
+                    <p class="text-lg font-bold {% if every_game.accuracy >= 55 %}text-emerald-400{% else %}text-amber-400{% endif %}">{{ '%.1f'|format(every_game.accuracy) }}%</p>
+                </div>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+                <div>
+                    <p class="text-[10px] uppercase tracking-wider text-gray-500">Staked</p>
+                    <p class="text-sm font-semibold text-gray-300">${{ '{:,.0f}'.format(every_game.staked) }}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] uppercase tracking-wider text-gray-500">P&L</p>
+                    <p class="text-sm font-semibold {% if every_game.pnl > 0 %}text-emerald-400{% elif every_game.pnl < 0 %}text-red-400{% else %}text-gray-400{% endif %}">${{ '%+,.0f'|format(every_game.pnl) }}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] uppercase tracking-wider text-gray-500">Streak</p>
+                    <p class="text-sm font-semibold {% if every_game.streak[:1] == 'W' %}text-emerald-400{% else %}text-red-400{% endif %}">{{ every_game.streak }}</p>
+                </div>
+            </div>
+            <div class="mt-3 pt-3 border-t border-white/5">
+                <p class="text-[10px] uppercase tracking-wider text-gray-500">ROI</p>
+                <p class="text-lg font-bold {% if every_game.roi > 0 %}text-emerald-400{% elif every_game.roi < 0 %}text-red-400{% else %}text-gray-400{% endif %}">{{ '%+.1f'|format(every_game.roi) }}%</p>
+            </div>
+        </div>
+
+        <!-- Value Bets Only -->
+        <div class="bg-white/5 border border-white/10 rounded-2xl p-5">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-sm font-bold text-white">Value Bets Only</h3>
+                <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">EDGE PICKS</span>
+            </div>
+            <div class="grid grid-cols-3 gap-3 mb-3">
+                <div>
+                    <p class="text-[10px] uppercase tracking-wider text-gray-500">Matches</p>
+                    <p class="text-lg font-bold text-white">{{ value_bets.matches }}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] uppercase tracking-wider text-gray-500">Correct</p>
+                    <p class="text-lg font-bold text-white">{{ value_bets.correct }}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] uppercase tracking-wider text-gray-500">Accuracy</p>
+                    <p class="text-lg font-bold {% if value_bets.accuracy >= 55 %}text-emerald-400{% else %}text-amber-400{% endif %}">{{ '%.1f'|format(value_bets.accuracy) }}%</p>
+                </div>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+                <div>
+                    <p class="text-[10px] uppercase tracking-wider text-gray-500">Staked</p>
+                    <p class="text-sm font-semibold text-gray-300">${{ '{:,.0f}'.format(value_bets.staked) }}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] uppercase tracking-wider text-gray-500">P&L</p>
+                    <p class="text-sm font-semibold {% if value_bets.pnl > 0 %}text-emerald-400{% elif value_bets.pnl < 0 %}text-red-400{% else %}text-gray-400{% endif %}">${{ '%+,.0f'|format(value_bets.pnl) }}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] uppercase tracking-wider text-gray-500">Avg Edge</p>
+                    <p class="text-sm font-semibold text-amber-400">{{ '%.1f'|format(value_bets.avg_edge) }}%</p>
+                </div>
+            </div>
+            <div class="mt-3 pt-3 border-t border-white/5">
+                <p class="text-[10px] uppercase tracking-wider text-gray-500">ROI</p>
+                <p class="text-lg font-bold {% if value_bets.roi > 0 %}text-emerald-400{% elif value_bets.roi < 0 %}text-red-400{% else %}text-gray-400{% endif %}">{{ '%+.1f'|format(value_bets.roi) }}%</p>
+            </div>
+        </div>
     </div>
 
-    <!-- Value Bet Accuracy -->
-    <div class="bg-white/5 border border-white/10 rounded-xl p-4">
-      <p class="text-[11px] uppercase tracking-wider text-gray-500 mb-1">Value Bet Acc.</p>
-      <p class="text-2xl font-extrabold {% if tracker_summary.value_bet_accuracy >= 60 %}text-emerald-400{% elif tracker_summary.value_bet_accuracy >= 50 %}text-amber-400{% else %}text-gray-400{% endif %}">
-        {{ tracker_summary.value_bet_accuracy }}%
-      </p>
+    <!-- 3. Outcome Breakdown -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Team A Picks -->
+        <div class="bg-white/5 border border-white/10 rounded-2xl p-5">
+            <h3 class="text-sm font-bold text-white mb-3">Team A Picks <span class="text-gray-500 text-xs font-normal">(Home / Listed First)</span></h3>
+            <div class="flex items-end gap-4 mb-3">
+                <p class="text-3xl font-extrabold {% if outcome.team_a.accuracy >= 60 %}text-emerald-400{% elif outcome.team_a.accuracy >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">{{ '%.1f'|format(outcome.team_a.accuracy) }}%</p>
+                <p class="text-sm text-gray-400 pb-1">{{ outcome.team_a.correct }} / {{ outcome.team_a.total }}</p>
+            </div>
+            <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
+                <div class="h-full rounded-full {% if outcome.team_a.accuracy >= 60 %}bg-emerald-500{% elif outcome.team_a.accuracy >= 50 %}bg-amber-500{% else %}bg-red-500{% endif %}" style="width: {{ outcome.team_a.accuracy }}%"></div>
+            </div>
+        </div>
+
+        <!-- Team B Picks -->
+        <div class="bg-white/5 border border-white/10 rounded-2xl p-5">
+            <h3 class="text-sm font-bold text-white mb-3">Team B Picks <span class="text-gray-500 text-xs font-normal">(Away / Listed Second)</span></h3>
+            <div class="flex items-end gap-4 mb-3">
+                <p class="text-3xl font-extrabold {% if outcome.team_b.accuracy >= 60 %}text-emerald-400{% elif outcome.team_b.accuracy >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">{{ '%.1f'|format(outcome.team_b.accuracy) }}%</p>
+                <p class="text-sm text-gray-400 pb-1">{{ outcome.team_b.correct }} / {{ outcome.team_b.total }}</p>
+            </div>
+            <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
+                <div class="h-full rounded-full {% if outcome.team_b.accuracy >= 60 %}bg-emerald-500{% elif outcome.team_b.accuracy >= 50 %}bg-amber-500{% else %}bg-red-500{% endif %}" style="width: {{ outcome.team_b.accuracy }}%"></div>
+            </div>
+        </div>
     </div>
 
-    <!-- Streak -->
-    <div class="bg-white/5 border border-white/10 rounded-xl p-4">
-      <p class="text-[11px] uppercase tracking-wider text-gray-500 mb-1">Current Streak</p>
-      <div class="flex items-baseline gap-1.5">
-        <p class="text-2xl font-extrabold {% if tracker_summary.streak_type == 'W' %}text-emerald-400{% elif tracker_summary.streak_type == 'L' %}text-red-400{% else %}text-gray-400{% endif %}">
-          {{ tracker_summary.streak_count }}
-        </p>
-        <span class="text-sm font-bold {% if tracker_summary.streak_type == 'W' %}text-emerald-500{% elif tracker_summary.streak_type == 'L' %}text-red-500{% else %}text-gray-500{% endif %}">
-          {{ tracker_summary.streak_type }}
-        </span>
-      </div>
-    </div>
-
-    <!-- Counts -->
-    <div class="bg-white/5 border border-white/10 rounded-xl p-4">
-      <p class="text-[11px] uppercase tracking-wider text-gray-500 mb-1">Predictions</p>
-      <p class="text-2xl font-extrabold text-white">{{ tracker_summary.total }}</p>
-      <p class="text-[11px] text-gray-500 mt-0.5">{{ tracker_summary.settled }} settled / {{ tracker_summary.pending }} pending</p>
-    </div>
-  </div>
-
-  <!-- Predictions Table -->
-  <div class="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-    <div class="px-5 py-4 border-b border-white/5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-      <h2 class="text-sm font-bold text-white">All Predictions</h2>
-      <div class="flex items-center gap-1.5">
-        <button @click="filterStatus = 'all'" :class="filterStatus === 'all' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'"
-          class="px-3 py-1 rounded-lg text-[11px] font-semibold uppercase tracking-wider transition-colors">All</button>
-        <button @click="filterStatus = 'settled'" :class="filterStatus === 'settled' ? 'bg-blue-500/15 text-blue-400' : 'text-gray-500 hover:text-gray-300'"
-          class="px-3 py-1 rounded-lg text-[11px] font-semibold uppercase tracking-wider transition-colors">Settled</button>
-        <button @click="filterStatus = 'pending'" :class="filterStatus === 'pending' ? 'bg-amber-500/15 text-amber-400' : 'text-gray-500 hover:text-gray-300'"
-          class="px-3 py-1 rounded-lg text-[11px] font-semibold uppercase tracking-wider transition-colors">Pending</button>
-      </div>
-    </div>
-
-    {% if predictions %}
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="border-b border-white/5">
-            <th class="text-left px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Date</th>
-            <th class="text-left px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Match</th>
-            <th class="text-left px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Predicted</th>
-            <th class="text-right px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Prob</th>
-            <th class="text-left px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Actual</th>
-            <th class="text-center px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Result</th>
-            <th class="text-right px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">P&L</th>
-            <th class="text-center px-5 py-3 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Status</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-white/5">
-          {% for p in predictions %}
-          <tr x-show="filterStatus === 'all' || filterStatus === '{{ p.status }}'" class="hover:bg-white/[0.02] transition-colors">
-            <td class="px-5 py-3 text-gray-400 whitespace-nowrap">{{ p.date }}</td>
-            <td class="px-5 py-3 text-white font-medium whitespace-nowrap">{{ p.team_a }} vs {{ p.team_b }}</td>
-            <td class="px-5 py-3 text-gray-300 whitespace-nowrap">{{ p.predicted_winner }}</td>
-            <td class="px-5 py-3 text-right text-gray-300">{{ '%.1f'|format(p.probability) }}%</td>
-            <td class="px-5 py-3 text-gray-300 whitespace-nowrap">{{ p.actual_winner or '-' }}</td>
-            <td class="px-5 py-3 text-center">
-              {% if p.status == 'settled' %}
-                {% if p.correct %}
-                  <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500/15">
-                    <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
-                  </span>
-                {% else %}
-                  <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-500/15">
-                    <svg class="w-3.5 h-3.5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/></svg>
-                  </span>
-                {% endif %}
-              {% else %}
-                <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-500/10">
-                  <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                </span>
-              {% endif %}
-            </td>
-            <td class="px-5 py-3 text-right whitespace-nowrap">
-              {% if p.pnl is not none %}
-                <span class="font-semibold {% if p.pnl > 0 %}text-emerald-400{% elif p.pnl < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
-                  {{ '%+.1f'|format(p.pnl) }}
-                </span>
-              {% else %}
-                <span class="text-gray-600">--</span>
-              {% endif %}
-            </td>
-            <td class="px-5 py-3 text-center">
-              <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold
-                {% if p.status == 'settled' %}bg-blue-500/10 text-blue-400
-                {% else %}bg-amber-500/10 text-amber-400{% endif %}">
-                <span class="w-1.5 h-1.5 rounded-full {% if p.status == 'settled' %}bg-blue-400{% else %}bg-amber-400{% endif %}"></span>
-                {{ p.status|capitalize }}
-              </span>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <div class="p-8 text-center">
-      <svg class="w-10 h-10 mx-auto text-gray-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-      <p class="text-gray-500 text-sm">No predictions tracked yet.</p>
+    <!-- 4. Weekly Performance Report -->
+    {% if weekly_report %}
+    <div class="bg-white/5 border border-white/10 rounded-2xl overflow-hidden" x-data="{ expandedWeek: null }">
+        <div class="px-5 py-4 border-b border-white/5">
+            <h2 class="text-sm font-bold text-white">Weekly Performance Report</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-white/5">
+                        <th class="text-left px-5 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Week</th>
+                        <th class="text-center px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Games</th>
+                        <th class="text-center px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Accuracy</th>
+                        <th class="text-center px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Value Bets</th>
+                        <th class="text-right px-5 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">P&L</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-white/5">
+                    {% for w in weekly_report %}
+                    <tr class="hover:bg-white/[0.02] cursor-pointer" @click="expandedWeek = expandedWeek === '{{ w.week }}' ? null : '{{ w.week }}'">
+                        <td class="px-5 py-3 text-white font-medium whitespace-nowrap">
+                            <div class="flex items-center gap-2">
+                                <svg class="w-3 h-3 text-gray-500 transition-transform" :class="expandedWeek === '{{ w.week }}' ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                                {{ w.week }}
+                            </div>
+                        </td>
+                        <td class="px-4 py-3 text-center text-gray-300">{{ w.correct }}/{{ w.total }}</td>
+                        <td class="px-4 py-3 text-center">
+                            <span class="font-semibold {% if w.accuracy >= 60 %}text-emerald-400{% elif w.accuracy >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">{{ '%.0f'|format(w.accuracy) }}%</span>
+                        </td>
+                        <td class="px-4 py-3 text-center text-gray-300">{{ w.vb_correct }}/{{ w.vb_total }}</td>
+                        <td class="px-5 py-3 text-right">
+                            <span class="font-semibold {% if w.pnl > 0 %}text-emerald-400{% elif w.pnl < 0 %}text-red-400{% else %}text-gray-400{% endif %}">${{ '%+.0f'|format(w.pnl) }}</span>
+                        </td>
+                    </tr>
+                    <tr x-show="expandedWeek === '{{ w.week }}'" x-transition class="bg-white/[0.02]">
+                        <td colspan="5" class="px-5 py-3">
+                            <div class="grid grid-cols-4 gap-4 text-xs">
+                                <div>
+                                    <p class="text-gray-500 mb-0.5">Total Games</p>
+                                    <p class="text-white font-semibold">{{ w.total }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-500 mb-0.5">Correct</p>
+                                    <p class="text-emerald-400 font-semibold">{{ w.correct }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-500 mb-0.5">Value Bet Record</p>
+                                    <p class="text-amber-400 font-semibold">{{ w.vb_correct }}/{{ w.vb_total }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-500 mb-0.5">Week P&L</p>
+                                    <p class="font-semibold {% if w.pnl > 0 %}text-emerald-400{% else %}text-red-400{% endif %}">${{ '%+.0f'|format(w.pnl) }}</p>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
     {% endif %}
-  </div>
+
+    <!-- 5. Best / Worst Month -->
+    {% if best_month or worst_month %}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {% if best_month %}
+        <div class="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-5">
+            <div class="flex items-center gap-2 mb-2">
+                <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                <p class="text-[10px] uppercase tracking-wider text-emerald-400 font-semibold">Best Month</p>
+            </div>
+            <p class="text-lg font-bold text-white">{{ best_month.month }}</p>
+            <p class="text-2xl font-extrabold text-emerald-400">${{ '%+,.0f'|format(best_month.pnl) }}</p>
+        </div>
+        {% endif %}
+        {% if worst_month %}
+        <div class="bg-red-500/5 border border-red-500/20 rounded-2xl p-5">
+            <div class="flex items-center gap-2 mb-2">
+                <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0v-8m0 8l-8-8-4 4-6-6"/></svg>
+                <p class="text-[10px] uppercase tracking-wider text-red-400 font-semibold">Worst Month</p>
+            </div>
+            <p class="text-lg font-bold text-white">{{ worst_month.month }}</p>
+            <p class="text-2xl font-extrabold text-red-400">${{ '%+,.0f'|format(worst_month.pnl) }}</p>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- 6. Filter Buttons -->
+    <div class="flex items-center gap-1.5 flex-wrap">
+        <button @click="filter = 'all'" :class="filter === 'all' ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'"
+            class="px-3 py-1.5 rounded-lg text-[11px] font-semibold uppercase tracking-wider transition-colors">All</button>
+        <button @click="filter = 'correct'" :class="filter === 'correct' ? 'bg-emerald-500/15 text-emerald-400' : 'text-gray-500 hover:text-gray-300'"
+            class="px-3 py-1.5 rounded-lg text-[11px] font-semibold uppercase tracking-wider transition-colors">Correct</button>
+        <button @click="filter = 'wrong'" :class="filter === 'wrong' ? 'bg-red-500/15 text-red-400' : 'text-gray-500 hover:text-gray-300'"
+            class="px-3 py-1.5 rounded-lg text-[11px] font-semibold uppercase tracking-wider transition-colors">Wrong</button>
+        <button @click="filter = 'pending'" :class="filter === 'pending' ? 'bg-amber-500/15 text-amber-400' : 'text-gray-500 hover:text-gray-300'"
+            class="px-3 py-1.5 rounded-lg text-[11px] font-semibold uppercase tracking-wider transition-colors">Pending</button>
+        <button @click="filter = 'value'" :class="filter === 'value' ? 'bg-purple-500/15 text-purple-400' : 'text-gray-500 hover:text-gray-300'"
+            class="px-3 py-1.5 rounded-lg text-[11px] font-semibold uppercase tracking-wider transition-colors">Value Bets</button>
+    </div>
+
+    <!-- 7. Match-by-Match Table -->
+    <div class="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-white/5">
+            <h2 class="text-sm font-bold text-white">Match-by-Match Results</h2>
+        </div>
+
+        {% if matches %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-white/5">
+                        <th class="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Date</th>
+                        <th class="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Match</th>
+                        <th class="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Predicted Winner</th>
+                        <th class="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Actual</th>
+                        <th class="text-center px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">Result</th>
+                        <th class="text-right px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">P&L</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-white/5">
+                    {% for m in matches %}
+                    <tr class="hover:bg-white/[0.02]"
+                        x-show="filter === 'all'
+                            || (filter === 'correct' && '{{ m.status }}' === 'settled' && {{ 'true' if m.is_correct else 'false' }})
+                            || (filter === 'wrong' && '{{ m.status }}' === 'settled' && !{{ 'true' if m.is_correct else 'false' }})
+                            || (filter === 'pending' && '{{ m.status }}' === 'pending')
+                            || (filter === 'value' && {{ 'true' if m.is_value_bet else 'false' }})">
+                        <td class="px-4 py-3 text-gray-400 whitespace-nowrap text-xs">{{ m.match_date }}</td>
+                        <td class="px-4 py-3 text-white font-medium whitespace-nowrap text-xs">{{ m.team_a }} vs {{ m.team_b }}</td>
+                        <td class="px-4 py-3 whitespace-nowrap text-xs">
+                            <span class="text-gray-300">{{ m.predicted_winner }}</span>
+                            {% if m.is_value_bet %}
+                            <span class="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">VB</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-gray-300 whitespace-nowrap text-xs">{{ m.actual_winner or '-' }}</td>
+                        <td class="px-4 py-3 text-center">
+                            {% if m.status == 'settled' %}
+                                {% if m.is_correct %}
+                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500/15">
+                                    <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                                </span>
+                                {% else %}
+                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-500/15">
+                                    <svg class="w-3.5 h-3.5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </span>
+                                {% endif %}
+                            {% else %}
+                            <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-500/10">
+                                <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-right whitespace-nowrap text-xs">
+                            {% if m.pnl_display is not none and m.pnl_display != '-' %}
+                            <span class="font-semibold {% if m.pnl_display is string %}text-gray-400{% elif m.pnl_display > 0 %}text-emerald-400{% elif m.pnl_display < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
+                                {% if m.pnl_display is string %}{{ m.pnl_display }}{% else %}${{ '%+.0f'|format(m.pnl_display) }}{% endif %}
+                            </span>
+                            {% else %}
+                            <span class="text-gray-600">--</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-8 text-center">
+            <svg class="w-10 h-10 mx-auto text-gray-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            <p class="text-gray-500 text-sm">No predictions tracked yet.</p>
+        </div>
+        {% endif %}
+    </div>
 
 </div>
 {% endblock %}

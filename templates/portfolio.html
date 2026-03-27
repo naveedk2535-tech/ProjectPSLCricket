@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-
 {% block title %}Portfolio{% endblock %}
 {% block page_title %}Betting Portfolio{% endblock %}
 {% block breadcrumb %}<span class="text-gray-600">/</span><span>Portfolio</span>{% endblock %}
@@ -11,7 +10,6 @@
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
         New Portfolio
     </button>
-    <!-- Quick create modal -->
     <div x-show="showCreate" x-transition @click.away="showCreate = false" class="absolute right-0 top-12 z-50 bg-gray-900 border border-white/10 rounded-xl p-4 shadow-2xl w-72">
         <form method="POST" action="{{ url_for('create_portfolio') }}">
             <label class="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">Portfolio Name</label>
@@ -25,73 +23,74 @@
 {% endblock %}
 
 {% block content %}
-{% set portfolio = portfolio|default({'bankroll': 0, 'starting_bankroll': 0, 'pnl': 0, 'roi': 0, 'id': none, 'name': 'No Portfolio'}) %}
+{% set portfolio = portfolio|default({'bankroll': 0, 'starting_bankroll': 0, 'pnl': 0, 'roi': 0, 'id': none, 'name': 'No Portfolio', 'status': 'none'}) %}
 {% set all_portfolios = all_portfolios|default([]) %}
 {% set bets = bets|default([]) %}
+{% set pending_bets = pending_bets|default([]) %}
+{% set settled_bets = settled_bets|default([]) %}
 {% set upcoming_matches = upcoming_matches|default([]) %}
+{% set bet_stats = bet_stats|default({'won': 0, 'lost': 0, 'win_rate': 0, 'total_staked': 0, 'avg_stake': 0, 'avg_odds': 0, 'best_win': 0, 'worst_loss': 0, 'streak': 'N0'}) %}
 
-<div class="space-y-5" x-data="{ showForm: false, filterStatus: 'all', showEditBankroll: false, settleId: null, settleResult: '' }">
+<div class="space-y-5" x-data="{ showForm: false, showEditBankroll: false, editBetId: null, showEditPortfolio: false, filterStatus: 'all' }">
 
-    <!-- Portfolio Selector (if multiple) -->
-    {% if all_portfolios|length > 1 %}
+    <!-- 1. Portfolio Tabs -->
+    {% if all_portfolios|length > 0 %}
     <div class="flex items-center gap-2 flex-wrap">
-        <span class="text-[11px] text-gray-500 uppercase tracking-wider">Portfolio:</span>
+        <span class="text-[10px] text-gray-500 uppercase tracking-wider mr-1">Portfolio:</span>
+        <a href="{{ url_for('portfolio') }}"
+           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all
+           {% if not request.args.get('id') %}bg-emerald-500/15 text-emerald-400 border border-emerald-500/30{% else %}bg-white/5 text-gray-400 border border-white/10 hover:border-white/20{% endif %}">
+            All Time
+        </a>
         {% for p in all_portfolios %}
         <a href="{{ url_for('portfolio') }}?id={{ p.id }}"
-           class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-semibold transition-all
-           {% if p.id == portfolio.id %}bg-emerald-500/15 text-emerald-400 border border-emerald-500/30
+           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all
+           {% if p.id == portfolio.id and request.args.get('id') %}bg-emerald-500/15 text-emerald-400 border border-emerald-500/30
            {% else %}bg-white/5 text-gray-400 border border-white/10 hover:border-white/20{% endif %}">
             {{ p.name }}
             {% if p.status == 'closed' %}<span class="text-gray-600">(closed)</span>{% endif %}
+            {% set p_pnl = (p.bankroll|default(0)|float) - (p.starting_bankroll|default(0)|float) %}
+            <span class="text-[10px] {% if p_pnl > 0 %}text-emerald-400{% elif p_pnl < 0 %}text-red-400{% else %}text-gray-500{% endif %}">{{ '%+.0f'|format(p_pnl) }}</span>
         </a>
         {% endfor %}
     </div>
     {% endif %}
 
     {% if portfolio.id %}
-    <!-- Portfolio Summary -->
-    <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <div class="bg-white/5 border border-white/10 rounded-xl p-4">
-            <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Portfolio</p>
-            <p class="text-sm font-bold text-white truncate">{{ portfolio.name|default('Main') }}</p>
-            <p class="text-[10px] text-gray-600 mt-1">{{ portfolio.status|default('active')|capitalize }}</p>
-        </div>
-        <div class="bg-white/5 border border-white/10 rounded-xl p-4">
-            <div class="flex items-center justify-between">
-                <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Bankroll</p>
-                <button @click="showEditBankroll = !showEditBankroll" class="text-gray-600 hover:text-gray-400">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                </button>
+    <!-- 2. Hero Section -->
+    <div class="bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/20 rounded-2xl p-5">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+                <div class="flex items-center justify-between">
+                    <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Starting Bankroll</p>
+                    <button @click="showEditBankroll = !showEditBankroll" class="text-gray-600 hover:text-gray-400" title="Edit">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                    </button>
+                </div>
+                <p class="text-xl font-bold text-white">{{ '{:,.0f}'.format(portfolio.starting_bankroll|default(0)|float) }}</p>
             </div>
-            <p class="text-xl font-bold text-white">{{ '{:,.0f}'.format(portfolio.bankroll|default(0)|float) }}</p>
-            <p class="text-[10px] text-gray-600 mt-0.5">Started: {{ '{:,.0f}'.format(portfolio.starting_bankroll|default(0)|float) }}</p>
-        </div>
-        <div class="bg-white/5 border border-white/10 rounded-xl p-4">
-            <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">P&L</p>
-            <p class="text-xl font-bold {% if (portfolio.pnl|default(0)|float) > 0 %}text-emerald-400{% elif (portfolio.pnl|default(0)|float) < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
-                {{ '{:+,.0f}'.format(portfolio.pnl|default(0)|float) }}
-            </p>
-        </div>
-        <div class="bg-white/5 border border-white/10 rounded-xl p-4">
-            <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">ROI</p>
-            <p class="text-xl font-bold {% if (portfolio.roi|default(0)|float) > 0 %}text-emerald-400{% elif (portfolio.roi|default(0)|float) < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
-                {{ '{:+.1f}'.format(portfolio.roi|default(0)|float) }}%
-            </p>
-        </div>
-        <div class="bg-white/5 border border-white/10 rounded-xl p-4">
-            <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Bets</p>
-            <p class="text-xl font-bold text-white">{{ bets|length }}</p>
-            <p class="text-[10px] text-gray-600 mt-0.5">
-                <span class="text-amber-400">{{ bets|selectattr('status','equalto','pending')|list|length }}</span> pending
-                · <span class="text-emerald-400">{{ bets|selectattr('status','equalto','won')|list|length }}</span> won
-                · <span class="text-red-400">{{ bets|selectattr('status','equalto','lost')|list|length }}</span> lost
-            </p>
+            <div>
+                <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Current Value</p>
+                <p class="text-xl font-bold text-white">{{ '{:,.0f}'.format(portfolio.bankroll|default(0)|float) }}</p>
+            </div>
+            <div>
+                <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">P&L</p>
+                <p class="text-xl font-bold {% if (portfolio.pnl|default(0)|float) > 0 %}text-emerald-400{% elif (portfolio.pnl|default(0)|float) < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
+                    {{ '{:+,.0f}'.format(portfolio.pnl|default(0)|float) }}
+                </p>
+            </div>
+            <div>
+                <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">ROI</p>
+                <p class="text-xl font-bold {% if (portfolio.roi|default(0)|float) > 0 %}text-emerald-400{% elif (portfolio.roi|default(0)|float) < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
+                    {{ '{:+.1f}'.format(portfolio.roi|default(0)|float) }}%
+                </p>
+            </div>
         </div>
     </div>
 
     <!-- Edit Bankroll (inline) -->
-    <div x-show="showEditBankroll" x-transition class="bg-white/5 border border-white/10 rounded-xl p-4">
-        <form method="POST" action="{{ url_for('update_bankroll') }}" class="flex items-end gap-3">
+    <div x-show="showEditBankroll" x-transition class="bg-white/5 border border-white/10 rounded-2xl p-4">
+        <form method="POST" action="{{ url_for('update_bankroll') }}" class="flex items-end gap-3 flex-wrap">
             <input type="hidden" name="portfolio_id" value="{{ portfolio.id }}">
             <div>
                 <label class="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">New Bankroll</label>
@@ -99,11 +98,248 @@
             </div>
             <button type="submit" class="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-500 text-white">Update</button>
             <button type="button" @click="showEditBankroll = false" class="px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-white">Cancel</button>
-            <a href="{{ url_for('close_portfolio', pid=portfolio.id) }}" onclick="return confirm('Close this portfolio?')" class="ml-auto px-4 py-2 rounded-lg text-sm text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/40">Close Portfolio</a>
         </form>
     </div>
 
-    <!-- Place Bet -->
+    <!-- Edit / Delete Portfolio -->
+    <div class="flex items-center gap-2">
+        <button @click="showEditPortfolio = !showEditPortfolio"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[11px] font-semibold text-gray-400 transition-all">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+            Edit Portfolio
+        </button>
+        <form method="POST" action="{{ url_for('delete_portfolio', pid=portfolio.id) }}" onsubmit="return confirm('Delete this portfolio and all its bets? This cannot be undone.');" class="inline">
+            <button type="submit" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-500/5 hover:bg-red-500/10 border border-red-500/20 rounded-lg text-[11px] font-semibold text-red-400 transition-all">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                Delete
+            </button>
+        </form>
+        <a href="{{ url_for('close_portfolio', pid=portfolio.id) }}" onclick="return confirm('Close this portfolio?')"
+           class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/20 rounded-lg text-[11px] font-semibold text-amber-400 transition-all">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+            Close
+        </a>
+    </div>
+
+    <!-- Edit Portfolio Form -->
+    <div x-show="showEditPortfolio" x-transition class="bg-white/5 border border-white/10 rounded-2xl p-4">
+        <form method="POST" action="{{ url_for('edit_portfolio', pid=portfolio.id) }}" class="flex items-end gap-3 flex-wrap">
+            <div>
+                <label class="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">Name</label>
+                <input type="text" name="name" value="{{ portfolio.name }}" class="bg-gray-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-emerald-500 w-48">
+            </div>
+            <div>
+                <label class="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">Bankroll</label>
+                <input type="number" name="bankroll" step="100" value="{{ portfolio.bankroll|default(0)|int }}" class="bg-gray-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-emerald-500 w-40">
+            </div>
+            <button type="submit" class="px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white">Save</button>
+            <button type="button" @click="showEditPortfolio = false" class="px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-white">Cancel</button>
+        </form>
+    </div>
+
+    <!-- 3. Performance Grid -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+        <div class="bg-white/5 border border-white/10 rounded-xl p-3">
+            <p class="text-[10px] uppercase tracking-wider text-gray-500">Total Bets</p>
+            <p class="text-lg font-bold text-white">{{ bets|length }}</p>
+        </div>
+        <div class="bg-white/5 border border-white/10 rounded-xl p-3">
+            <p class="text-[10px] uppercase tracking-wider text-gray-500">Pending</p>
+            <p class="text-lg font-bold text-amber-400">{{ pending_bets|length }}</p>
+        </div>
+        <div class="bg-white/5 border border-white/10 rounded-xl p-3">
+            <p class="text-[10px] uppercase tracking-wider text-gray-500">Win Rate</p>
+            <p class="text-lg font-bold {% if bet_stats.win_rate >= 55 %}text-emerald-400{% elif bet_stats.win_rate >= 45 %}text-amber-400{% else %}text-red-400{% endif %}">{{ '%.1f'|format(bet_stats.win_rate) }}%</p>
+        </div>
+        <div class="bg-white/5 border border-white/10 rounded-xl p-3">
+            <p class="text-[10px] uppercase tracking-wider text-gray-500">Won / Lost</p>
+            <p class="text-lg font-bold text-white"><span class="text-emerald-400">{{ bet_stats.won }}</span> / <span class="text-red-400">{{ bet_stats.lost }}</span></p>
+        </div>
+        <div class="bg-white/5 border border-white/10 rounded-xl p-3">
+            <p class="text-[10px] uppercase tracking-wider text-gray-500">Staked</p>
+            <p class="text-lg font-bold text-gray-300">{{ '{:,.0f}'.format(bet_stats.total_staked) }}</p>
+        </div>
+        <div class="bg-white/5 border border-white/10 rounded-xl p-3">
+            <p class="text-[10px] uppercase tracking-wider text-gray-500">P&L</p>
+            <p class="text-lg font-bold {% if (portfolio.pnl|default(0)|float) > 0 %}text-emerald-400{% elif (portfolio.pnl|default(0)|float) < 0 %}text-red-400{% else %}text-gray-400{% endif %}">{{ '{:+,.0f}'.format(portfolio.pnl|default(0)|float) }}</p>
+        </div>
+        <div class="bg-white/5 border border-white/10 rounded-xl p-3">
+            <p class="text-[10px] uppercase tracking-wider text-gray-500">ROI</p>
+            <p class="text-lg font-bold {% if (portfolio.roi|default(0)|float) > 0 %}text-emerald-400{% elif (portfolio.roi|default(0)|float) < 0 %}text-red-400{% else %}text-gray-400{% endif %}">{{ '{:+.1f}'.format(portfolio.roi|default(0)|float) }}%</p>
+        </div>
+        <div class="bg-white/5 border border-white/10 rounded-xl p-3">
+            <p class="text-[10px] uppercase tracking-wider text-gray-500">Streak</p>
+            <p class="text-lg font-bold {% if bet_stats.streak[:1] == 'W' %}text-emerald-400{% elif bet_stats.streak[:1] == 'L' %}text-red-400{% else %}text-gray-400{% endif %}">{{ bet_stats.streak }}</p>
+        </div>
+    </div>
+
+    <!-- 4. Betting Stats -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="bg-white/5 border border-white/10 rounded-xl p-4">
+            <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Avg Stake</p>
+            <p class="text-xl font-bold text-white">{{ '{:,.0f}'.format(bet_stats.avg_stake) }}</p>
+        </div>
+        <div class="bg-white/5 border border-white/10 rounded-xl p-4">
+            <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Avg Odds</p>
+            <p class="text-xl font-bold text-white">{{ '{:.2f}'.format(bet_stats.avg_odds) }}</p>
+        </div>
+        <div class="bg-white/5 border border-white/10 rounded-xl p-4">
+            <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Best Win</p>
+            <p class="text-xl font-bold text-emerald-400">{{ '{:+,.0f}'.format(bet_stats.best_win) }}</p>
+        </div>
+        <div class="bg-white/5 border border-white/10 rounded-xl p-4">
+            <p class="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Worst Loss</p>
+            <p class="text-xl font-bold text-red-400">{{ '{:+,.0f}'.format(bet_stats.worst_loss) }}</p>
+        </div>
+    </div>
+
+    <!-- 5. Pending Bets Table -->
+    {% if pending_bets %}
+    <div class="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-white/5">
+            <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                Pending Bets
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400">{{ pending_bets|length }}</span>
+            </h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-white/5">
+                        <th class="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">Date</th>
+                        <th class="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">Match</th>
+                        <th class="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">Bet Type</th>
+                        <th class="text-right px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">Stake</th>
+                        <th class="text-right px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">Odds</th>
+                        <th class="text-center px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-white/5">
+                    {% for b in pending_bets %}
+                    <tr class="hover:bg-white/[0.02]">
+                        <!-- Normal row view -->
+                        <template x-if="editBetId !== {{ b.id }}">
+                            <td class="px-4 py-3 text-gray-400 whitespace-nowrap text-xs">{{ b.date }}</td>
+                        </template>
+                        <template x-if="editBetId !== {{ b.id }}">
+                            <td class="px-4 py-3 text-white font-medium whitespace-nowrap text-xs">{{ b.match }}</td>
+                        </template>
+                        <template x-if="editBetId !== {{ b.id }}">
+                            <td class="px-4 py-3 text-gray-400 text-xs">{{ b.bet_type }} - {{ b.selection }}</td>
+                        </template>
+                        <template x-if="editBetId !== {{ b.id }}">
+                            <td class="px-4 py-3 text-right text-gray-300 text-xs">{{ '{:.0f}'.format(b.stake|default(0)|float) }}</td>
+                        </template>
+                        <template x-if="editBetId !== {{ b.id }}">
+                            <td class="px-4 py-3 text-right text-gray-300 text-xs">{{ '{:.2f}'.format(b.odds|default(0)|float) }}</td>
+                        </template>
+                        <template x-if="editBetId !== {{ b.id }}">
+                            <td class="px-4 py-3 text-center">
+                                <div class="flex items-center justify-center gap-1">
+                                    <form method="POST" action="{{ url_for('settle_bet', bet_id=b.id) }}" class="inline">
+                                        <input type="hidden" name="result" value="won">
+                                        <button type="submit" class="p-1 rounded hover:bg-emerald-500/20 text-emerald-400" title="Won">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="{{ url_for('settle_bet', bet_id=b.id) }}" class="inline">
+                                        <input type="hidden" name="result" value="lost">
+                                        <button type="submit" class="p-1 rounded hover:bg-red-500/20 text-red-400" title="Lost">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                        </button>
+                                    </form>
+                                    <button @click="editBetId = {{ b.id }}" class="p-1 rounded hover:bg-blue-500/20 text-blue-400" title="Edit">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                    </button>
+                                    <form method="POST" action="{{ url_for('delete_bet', bet_id=b.id) }}" class="inline" onsubmit="return confirm('Delete this bet?');">
+                                        <button type="submit" class="p-1 rounded hover:bg-red-500/20 text-gray-500 hover:text-red-400" title="Delete">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </template>
+
+                        <!-- Inline edit row -->
+                        <template x-if="editBetId === {{ b.id }}">
+                            <td colspan="6" class="px-4 py-3">
+                                <form method="POST" action="{{ url_for('edit_bet', bet_id=b.id) }}" class="flex items-end gap-3 flex-wrap">
+                                    <div>
+                                        <label class="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">Selection</label>
+                                        <input type="text" name="selection" value="{{ b.selection }}" class="bg-gray-900 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-emerald-500 w-36">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">Stake</label>
+                                        <input type="number" name="stake" step="1" value="{{ b.stake|int }}" class="bg-gray-900 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-emerald-500 w-24">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] uppercase tracking-wider text-gray-500 mb-1">Odds</label>
+                                        <input type="number" name="odds" step="0.01" value="{{ '%.2f'|format(b.odds) }}" class="bg-gray-900 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-emerald-500 w-24">
+                                    </div>
+                                    <button type="submit" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white">Save</button>
+                                    <button type="button" @click="editBetId = null" class="px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white">Cancel</button>
+                                </form>
+                            </td>
+                        </template>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 6. Recent Settled Bets (last 10) -->
+    {% if settled_bets %}
+    <div class="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-white/5">
+            <h2 class="text-sm font-bold text-white">Recent Settled Bets</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-white/5">
+                        <th class="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">Date</th>
+                        <th class="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">Match</th>
+                        <th class="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">Selection</th>
+                        <th class="text-center px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">Result</th>
+                        <th class="text-right px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">Stake</th>
+                        <th class="text-right px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">P&L</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-white/5">
+                    {% for b in settled_bets[:10] %}
+                    <tr class="hover:bg-white/[0.02]">
+                        <td class="px-4 py-3 text-gray-400 whitespace-nowrap text-xs">{{ b.date }}</td>
+                        <td class="px-4 py-3 text-white font-medium whitespace-nowrap text-xs">{{ b.match }}</td>
+                        <td class="px-4 py-3 text-gray-300 text-xs">{{ b.selection }}</td>
+                        <td class="px-4 py-3 text-center">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold
+                                {% if b.status == 'won' %}bg-emerald-500/10 text-emerald-400
+                                {% elif b.status == 'lost' %}bg-red-500/10 text-red-400
+                                {% else %}bg-gray-500/10 text-gray-400{% endif %}">
+                                {{ b.status|upper }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-right text-gray-300 text-xs">{{ '{:.0f}'.format(b.stake|default(0)|float) }}</td>
+                        <td class="px-4 py-3 text-right whitespace-nowrap text-xs">
+                            {% if b.pnl is not none %}
+                            <span class="font-semibold {% if (b.pnl|default(0)|float) > 0 %}text-emerald-400{% elif (b.pnl|default(0)|float) < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
+                                {{ '{:+.0f}'.format(b.pnl|default(0)|float) }}
+                            </span>
+                            {% else %}
+                            <span class="text-gray-600">--</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 7. Place Bet Form -->
     <div>
         <button @click="showForm = !showForm"
             class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-colors">
@@ -112,7 +348,7 @@
         </button>
     </div>
 
-    <div x-show="showForm" x-transition class="bg-white/5 border border-white/10 rounded-xl p-5">
+    <div x-show="showForm" x-transition class="bg-white/5 border border-white/10 rounded-2xl p-5">
         <h3 class="text-sm font-bold text-white mb-4">New Bet</h3>
         <form method="POST" action="{{ url_for('place_bet') }}" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <input type="hidden" name="portfolio_id" value="{{ portfolio.id }}">
@@ -158,99 +394,9 @@
         </form>
     </div>
 
-    <!-- Bet History -->
-    <div class="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-        <div class="px-5 py-4 border-b border-white/5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <h2 class="text-sm font-bold text-white">Bet History</h2>
-            <div class="flex items-center gap-1.5">
-                {% for status in ['all', 'pending', 'won', 'lost'] %}
-                <button @click="filterStatus = '{{ status }}'" :class="filterStatus === '{{ status }}' ? '{% if status == "won" %}bg-emerald-500/15 text-emerald-400{% elif status == "lost" %}bg-red-500/15 text-red-400{% elif status == "pending" %}bg-amber-500/15 text-amber-400{% else %}bg-white/10 text-white{% endif %}' : 'text-gray-500 hover:text-gray-300'"
-                    class="px-3 py-1 rounded-lg text-[11px] font-semibold uppercase tracking-wider transition-colors">{{ status }}</button>
-                {% endfor %}
-            </div>
-        </div>
-
-        {% if bets %}
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="border-b border-white/5">
-                        <th class="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">Date</th>
-                        <th class="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">Match</th>
-                        <th class="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">Type</th>
-                        <th class="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">Selection</th>
-                        <th class="text-right px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">Stake</th>
-                        <th class="text-right px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">Odds</th>
-                        <th class="text-center px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">Status</th>
-                        <th class="text-right px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">P&L</th>
-                        <th class="text-center px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-white/5">
-                    {% for b in bets %}
-                    <tr x-show="filterStatus === 'all' || filterStatus === '{{ b.status }}'" class="hover:bg-white/[0.02]">
-                        <td class="px-4 py-3 text-gray-400 whitespace-nowrap text-xs">{{ b.date }}</td>
-                        <td class="px-4 py-3 text-white font-medium whitespace-nowrap text-xs">{{ b.match }}</td>
-                        <td class="px-4 py-3 text-gray-400 text-xs">{{ b.bet_type }}</td>
-                        <td class="px-4 py-3 text-gray-300 text-xs">{{ b.selection }}</td>
-                        <td class="px-4 py-3 text-right text-gray-300 text-xs">{{ '{:.0f}'.format(b.stake|default(0)|float) }}</td>
-                        <td class="px-4 py-3 text-right text-gray-300 text-xs">{{ '{:.2f}'.format(b.odds|default(0)|float) }}</td>
-                        <td class="px-4 py-3 text-center">
-                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold
-                                {% if b.status == 'won' %}bg-emerald-500/10 text-emerald-400
-                                {% elif b.status == 'lost' %}bg-red-500/10 text-red-400
-                                {% else %}bg-amber-500/10 text-amber-400{% endif %}">
-                                {{ b.status|capitalize }}
-                            </span>
-                        </td>
-                        <td class="px-4 py-3 text-right whitespace-nowrap text-xs">
-                            {% if b.pnl is not none and b.status != 'pending' %}
-                            <span class="font-semibold {% if (b.pnl|default(0)|float) > 0 %}text-emerald-400{% elif (b.pnl|default(0)|float) < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
-                                {{ '{:+.0f}'.format(b.pnl|default(0)|float) }}
-                            </span>
-                            {% else %}
-                            <span class="text-gray-600">--</span>
-                            {% endif %}
-                        </td>
-                        <td class="px-4 py-3 text-center">
-                            {% if b.status == 'pending' %}
-                            <div class="flex items-center justify-center gap-1">
-                                <form method="POST" action="{{ url_for('settle_bet', bet_id=b.id) }}" class="inline">
-                                    <input type="hidden" name="result" value="won">
-                                    <button type="submit" class="p-1 rounded hover:bg-emerald-500/20 text-emerald-400" title="Mark Won">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                                    </button>
-                                </form>
-                                <form method="POST" action="{{ url_for('settle_bet', bet_id=b.id) }}" class="inline">
-                                    <input type="hidden" name="result" value="lost">
-                                    <button type="submit" class="p-1 rounded hover:bg-red-500/20 text-red-400" title="Mark Lost">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                                    </button>
-                                </form>
-                                <form method="POST" action="{{ url_for('settle_bet', bet_id=b.id) }}" class="inline">
-                                    <input type="hidden" name="result" value="void">
-                                    <button type="submit" class="p-1 rounded hover:bg-gray-500/20 text-gray-500" title="Void">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
-                                    </button>
-                                </form>
-                            </div>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <div class="p-8 text-center">
-            <p class="text-gray-500 text-sm">No bets placed yet. Click "Place Bet" to get started.</p>
-        </div>
-        {% endif %}
-    </div>
-
     {% else %}
     <!-- No portfolio exists -->
-    <div class="text-center py-16 bg-white/5 border border-white/10 rounded-xl">
+    <div class="text-center py-16 bg-white/5 border border-white/10 rounded-2xl">
         <svg class="w-16 h-16 mx-auto text-gray-700 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         <h3 class="text-lg font-bold text-white mb-2">No Portfolio Yet</h3>
         <p class="text-gray-500 text-sm mb-6">Create a portfolio to start tracking your bets and P&L.</p>

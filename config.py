@@ -234,12 +234,12 @@ VENUES = {
 
 # ─── Rate Limits ────────────────────────────────────────────────────────────
 RATE_LIMITS = {
-    "cricket_api": {"calls": 80, "period_seconds": 86400},    # 100/day free tier
-    "odds_api": {"calls": 15, "period_seconds": 86400},       # 500/month ≈ 16/day
-    "reddit": {"calls": 60, "period_seconds": 86400},         # PRAW: 60/min, but be conservative per day
-    "newsapi": {"calls": 80, "period_seconds": 86400},        # 100/day free tier
-    "open_meteo": {"calls": 200, "period_seconds": 86400},    # Unlimited (free), be reasonable
-    "cricsheet": {"calls": 5, "period_seconds": 86400},       # Free, no strict limit
+    "cricket_api": {"calls": 8, "period_seconds": 86400},     # 100/day free, but conserve
+    "odds_api": {"calls": 12, "period_seconds": 86400},       # 500/month ≈ 16/day
+    "reddit": {"calls": 10, "period_seconds": 86400},         # 1 batch call per team, once daily
+    "newsapi": {"calls": 10, "period_seconds": 86400},        # 1 batch call per team, once daily
+    "open_meteo": {"calls": 50, "period_seconds": 86400},     # Unlimited (free)
+    "cricsheet": {"calls": 2, "period_seconds": 86400},       # Free, weekly only
 }
 
 # ─── Cache TTLs (seconds) ──────────────────────────────────────────────────

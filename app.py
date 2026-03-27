@@ -109,6 +109,8 @@ def team_color_filter(name):
     abbrev = get_abbreviation(canonical) if canonical else None
     if abbrev and abbrev in config.TEAMS:
         return config.TEAMS[abbrev]["color"]
+    if abbrev and abbrev in config.IPL_TEAMS:
+        return config.IPL_TEAMS[abbrev]["color"]
     return "#6B7280"
 
 
@@ -219,6 +221,26 @@ def switch_league(league):
 def _current_league():
     """Get current league from session, default to psl."""
     return session.get("league", "psl")
+
+
+def _league_teams(league=None):
+    """Return teams config dict for the current league."""
+    league = league or _current_league()
+    return config.IPL_TEAMS if league == "ipl" else config.TEAMS
+
+
+def _league_team_names(league=None):
+    """Return list of team names for the current league."""
+    league = league or _current_league()
+    if league == "ipl":
+        return config.IPL_TEAM_NAMES
+    return config.TEAM_NAMES
+
+
+def _league_season(league=None):
+    """Return current season string for the league."""
+    league = league or _current_league()
+    return config.LEAGUES.get(league, {}).get("season", config.CURRENT_SEASON)
 
 
 # ---------------------------------------------------------------------------
@@ -340,13 +362,14 @@ def dashboard():
     api_usage = rate_limiter.get_usage_summary()
 
     # Season stats
+    season = _league_season(league)
     total_played = db.fetch_one(
         "SELECT COUNT(*) as cnt FROM fixtures WHERE status = 'COMPLETED' AND season = ? AND league = ?",
-        [config.CURRENT_SEASON, league]
+        [season, league]
     )
     total_fixtures = db.fetch_one(
         "SELECT COUNT(*) as cnt FROM fixtures WHERE season = ? AND league = ?",
-        [config.CURRENT_SEASON, league]
+        [season, league]
     )
 
     played_count = total_played["cnt"] if total_played else 0
@@ -1057,17 +1080,18 @@ def live_recalculate():
 @app.route("/tournament")
 @login_required
 def tournament():
-    """PSL standings — points table and schedule."""
+    """League standings — points table and schedule."""
     league = _current_league()
-    # Build from team_ratings table for standings
-    all_teams_list = get_all_teams()
+    teams_config = _league_teams(league)
+    all_teams_list = _league_team_names(league)
+    season = _league_season(league)
 
     # Points table from team_ratings
     standings = []
     for team_name in all_teams_list:
         rating = db.fetch_one("SELECT * FROM team_ratings WHERE team = ? AND league = ?", [team_name, league])
         abbrev = get_abbreviation(team_name)
-        team_config = config.TEAMS.get(abbrev, {})
+        team_config = teams_config.get(abbrev, {})
 
         if rating:
             played = rating.get("matches_played", 0) or 0
@@ -1101,14 +1125,14 @@ def tournament():
     # Also try to compute from completed fixtures for more accuracy
     completed = db.fetch_all(
         "SELECT * FROM fixtures WHERE status = 'COMPLETED' AND season = ? AND league = ?",
-        [config.CURRENT_SEASON, league],
+        [season, league],
     )
     if completed:
         # Rebuild from fixtures
         table = {}
         for team_name in all_teams_list:
             abbrev = get_abbreviation(team_name)
-            team_config = config.TEAMS.get(abbrev, {})
+            team_config = teams_config.get(abbrev, {})
             table[team_name] = {
                 "name": team_name,
                 "played": 0, "won": 0, "lost": 0, "no_result": 0,
@@ -1169,7 +1193,7 @@ def tournament():
     )
 
     # Schedule
-    raw_schedule = db.fetch_all("SELECT * FROM fixtures WHERE season = ? AND league = ? ORDER BY match_date ASC", [config.CURRENT_SEASON, league])
+    raw_schedule = db.fetch_all("SELECT * FROM fixtures WHERE season = ? AND league = ? ORDER BY match_date ASC", [season, league])
     if not raw_schedule:
         raw_schedule = db.fetch_all("SELECT * FROM fixtures WHERE league = ? ORDER BY match_date ASC", [league])
 
@@ -1235,7 +1259,8 @@ def tournament():
 def sentiment():
     """Sentiment dashboard for all teams."""
     league = _current_league()
-    all_teams = get_all_teams()
+    all_teams = _league_team_names(league)
+    teams_config = _league_teams(league)
     teams = []
     for team_name in all_teams:
         row = db.fetch_one(
@@ -1243,7 +1268,7 @@ def sentiment():
             [team_name, league],
         )
         abbrev = get_abbreviation(team_name)
-        team_config = config.TEAMS.get(abbrev, {})
+        team_config = teams_config.get(abbrev, {})
 
         team_data = {
             "name": team_name,

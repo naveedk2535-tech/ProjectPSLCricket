@@ -95,6 +95,20 @@ def ensure_db():
         db.init_db()
         db.migrate_add_league_column()
         db.migrate_add_data_refresh_log()
+        # Pre-seed refresh log from api_calls if empty
+        try:
+            existing = db.fetch_one("SELECT COUNT(*) as c FROM data_refresh_log")
+            if existing and existing["c"] == 0:
+                api_sources = db.fetch_all(
+                    "SELECT api_name, MAX(called_at) as last_call FROM api_calls GROUP BY api_name"
+                )
+                for src in api_sources:
+                    db.execute(
+                        "INSERT OR IGNORE INTO data_refresh_log (league, source, status, detail, refreshed_at) VALUES (?, ?, ?, ?, ?)",
+                        ["psl", src["api_name"], "ok", "auto-detected from api_calls", src["last_call"]]
+                    )
+        except Exception:
+            pass
         app._db_initialized = True
 
 
@@ -2212,7 +2226,7 @@ def api_refresh_data():
         pred_count = 0
         for fix in upcoming:
             try:
-                pred = ens_predict(fix["team_a"], fix["team_b"], fix.get("venue"), fix.get("match_date"))
+                pred = ens_predict(fix["team_a"], fix["team_b"], fix.get("venue"), fix.get("match_date"), league=league)
                 if pred:
                     save_prediction(pred, fix["team_a"], fix["team_b"], fix["match_date"],
                                     fix.get("venue"), fix["id"], league=league)

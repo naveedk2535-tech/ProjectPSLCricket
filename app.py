@@ -2102,6 +2102,8 @@ def watchdog():
         ("Fixtures", "SELECT COUNT(*) as cnt FROM fixtures WHERE league = ?"),
         ("Team Ratings", "SELECT COUNT(*) as cnt FROM team_ratings WHERE league = ?"),
         ("Venue Stats", "SELECT COUNT(*) as cnt FROM venue_stats WHERE league = ?"),
+        ("Player Stats", "SELECT COUNT(*) as cnt FROM player_stats WHERE league = ?"),
+        ("Head to Head", "SELECT COUNT(*) as cnt FROM head_to_head WHERE league = ?"),
     ]
     for name, sql in integrity_checks:
         try:

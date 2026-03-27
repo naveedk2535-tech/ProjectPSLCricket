@@ -274,10 +274,70 @@ def task_tracker_generate():
         traceback.print_exc()
 
 
+def _fetch_completed_scorecards():
+    """For completed fixtures without match results, try to fetch scorecards from CricAPI."""
+    completed = db.fetch_all(
+        "SELECT * FROM fixtures WHERE status = 'COMPLETED' AND cricapi_id IS NOT NULL"
+    )
+    fetched = 0
+    for fix in completed:
+        # Check if match already in matches table
+        existing = db.fetch_one(
+            "SELECT id FROM matches WHERE match_date = ? AND team_a = ? AND team_b = ?",
+            [fix["match_date"], fix["team_a"], fix["team_b"]]
+        )
+        if existing:
+            continue
+
+        # Try to get scorecard from CricAPI
+        try:
+            from data.cricket_api import get_match_scorecard as get_scorecard
+            from data.rate_limiter import can_call
+            if not can_call("cricket_api"):
+                break
+            scorecard = get_scorecard(fix["cricapi_id"])
+            if scorecard and scorecard.get("status") in ("Match Over", "completed", "Complete"):
+                winner = standardise(scorecard.get("matchWinner", "")) if scorecard.get("matchWinner") else None
+                if not winner:
+                    # Try to parse from score data
+                    for team_score in scorecard.get("score", []):
+                        pass  # CricAPI format varies
+
+                # Insert into matches
+                league = fix.get("league", "psl")
+                db.execute(
+                    """INSERT OR IGNORE INTO matches (season, match_date, venue, team_a, team_b, winner, league)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    [fix.get("season", "2026"), fix["match_date"], fix.get("venue"),
+                     fix["team_a"], fix["team_b"], winner, league]
+                )
+                # Update fixture result
+                if winner:
+                    db.execute(
+                        "UPDATE fixtures SET result = ? WHERE id = ?",
+                        [f"{winner} won", fix["id"]]
+                    )
+                    fetched += 1
+                    print(f"[settle] Fetched scorecard: {fix['team_a']} vs {fix['team_b']} -> {winner}")
+        except Exception as e:
+            print(f"[settle] Scorecard fetch error for {fix['team_a']} vs {fix['team_b']}: {e}")
+
+    return fetched
+
+
 def task_tracker_settle():
     """Settle pending tracker entries against actual match results."""
     task = "tracker_settle"
     log_info(task, "Settling tracker entries...")
+
+    # First, try to fetch scorecards for completed fixtures without match records
+    try:
+        fetched = _fetch_completed_scorecards()
+        if fetched:
+            log_info(task, f"Fetched {fetched} scorecards from CricAPI")
+    except Exception as e:
+        log_warn(task, f"Scorecard fetch failed: {e}")
+
     try:
         pending = db.fetch_all(
             "SELECT * FROM model_tracker WHERE status = 'pending'"

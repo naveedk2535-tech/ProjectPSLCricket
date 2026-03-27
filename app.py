@@ -715,7 +715,7 @@ def match_detail(team_a, team_b, match_date):
             "title": "Elo Rating",
             "icon": "chart-bar",
             "color": "emerald",
-            "items": [
+            "metrics": [
                 {"label": team_a, "value": f"{elo_a:.0f}"},
                 {"label": team_b, "value": f"{elo_b:.0f}"},
                 {"label": "Difference", "value": f"{abs(elo_a - elo_b):.0f} pts"},
@@ -733,7 +733,7 @@ def match_detail(team_a, team_b, match_date):
             "title": "Recent Form",
             "icon": "trending-up",
             "color": "blue",
-            "items": [
+            "metrics": [
                 {"label": f"{team_a} Form", "value": f"{form_a_val:.0f}%"},
                 {"label": f"{team_b} Form", "value": f"{form_b_val:.0f}%"},
                 {"label": f"{team_a} Streak", "value": streak_a},
@@ -749,7 +749,7 @@ def match_detail(team_a, team_b, match_date):
             "title": "Weather & Dew",
             "icon": "cloud",
             "color": "cyan",
-            "items": [
+            "metrics": [
                 {"label": "Temperature", "value": f"{weather.get('temperature', '-')}°C"},
                 {"label": "Humidity", "value": f"{weather.get('humidity', '-')}%"},
                 {"label": "Dew Score", "value": f"{dew_s:.1f}"},
@@ -764,7 +764,7 @@ def match_detail(team_a, team_b, match_date):
             "title": "Venue Analysis",
             "icon": "building",
             "color": "purple",
-            "items": [
+            "metrics": [
                 {"label": "Avg 1st Innings", "value": venue_stats_data.get("avg_first_innings", "-")},
                 {"label": "Avg 2nd Innings", "value": venue_stats_data.get("avg_second_innings", "-")},
                 {"label": "Chase Win %", "value": f"{venue_stats_data.get('chase_pct', '-')}%"},
@@ -779,7 +779,7 @@ def match_detail(team_a, team_b, match_date):
             "title": "Head to Head",
             "icon": "arrows-right-left",
             "color": "amber",
-            "items": [
+            "metrics": [
                 {"label": f"{team_a} Wins", "value": str(h2h.get("team_a_wins", 0))},
                 {"label": f"{team_b} Wins", "value": str(h2h.get("team_b_wins", 0))},
                 {"label": "Total Meetings", "value": str(h2h.get("total", 0))},
@@ -795,7 +795,7 @@ def match_detail(team_a, team_b, match_date):
             "title": "Sentiment",
             "icon": "chat-bubble",
             "color": "pink",
-            "items": [
+            "metrics": [
                 {"label": f"{team_a}", "value": f"{sent_score_a:.2f}"},
                 {"label": f"{team_b}", "value": f"{sent_score_b:.2f}"},
                 {"label": f"{team_a} Trend", "value": prediction["sentiment"]["team_a_trend"]},
@@ -811,7 +811,7 @@ def match_detail(team_a, team_b, match_date):
             "title": "Batting Strength",
             "icon": "bolt",
             "color": "lime",
-            "items": [
+            "metrics": [
                 {"label": f"{team_a} Strength", "value": f"{bat.get('team_a', {}).get('batting_strength', '-'):.2f}" if isinstance(bat.get('team_a', {}).get('batting_strength'), (int, float)) else "-"},
                 {"label": f"{team_b} Strength", "value": f"{bat.get('team_b', {}).get('batting_strength', '-'):.2f}" if isinstance(bat.get('team_b', {}).get('batting_strength'), (int, float)) else "-"},
                 {"label": f"{team_a} PP SR", "value": f"{bat.get('team_a', {}).get('powerplay_sr', 0):.1f}"},
@@ -827,7 +827,7 @@ def match_detail(team_a, team_b, match_date):
             "title": "Bowling Strength",
             "icon": "fire",
             "color": "red",
-            "items": [
+            "metrics": [
                 {"label": f"{team_a} Strength", "value": f"{bowl.get('team_a', {}).get('bowling_strength', '-'):.2f}" if isinstance(bowl.get('team_a', {}).get('bowling_strength'), (int, float)) else "-"},
                 {"label": f"{team_b} Strength", "value": f"{bowl.get('team_b', {}).get('bowling_strength', '-'):.2f}" if isinstance(bowl.get('team_b', {}).get('bowling_strength'), (int, float)) else "-"},
                 {"label": f"{team_a} Death Econ", "value": f"{bowl.get('team_a', {}).get('death_economy', 0):.1f}"},
@@ -843,7 +843,7 @@ def match_detail(team_a, team_b, match_date):
             "title": "Bookmaker Odds",
             "icon": "currency-dollar",
             "color": "yellow",
-            "items": [
+            "metrics": [
                 {"label": f"{team_a} Odds", "value": f"{odds_list[0].get('team_a_odds', '-')}"},
                 {"label": f"{team_b} Odds", "value": f"{odds_list[0].get('team_b_odds', '-')}"},
                 {"label": "Best Edge", "value": f"{best_edge.get('edge', 0):+.1f}%"},
@@ -858,7 +858,7 @@ def match_detail(team_a, team_b, match_date):
             "title": "Toss Impact",
             "icon": "arrow-path",
             "color": "indigo",
-            "items": [
+            "metrics": [
                 {"label": "Recommendation", "value": str(toss_rec)},
             ],
             "verdict": f"Win toss & {toss_rec}" if toss_rec not in ("neutral",) else "Toss neutral",

@@ -600,7 +600,7 @@
                     <h4 class="text-xs font-bold text-white uppercase tracking-wider">{{ card.title }}</h4>
                 </div>
                 <div class="space-y-1.5 mb-3">
-                    {% for item in card.items %}
+                    {% for item in card.metrics %}
                     <div class="flex justify-between text-[11px]">
                         <span class="text-gray-500">{{ item.label }}</span>
                         <span class="text-white font-semibold">{{ item.value }}</span>

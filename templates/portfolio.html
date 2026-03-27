@@ -15,7 +15,7 @@
     <div x-show="showCreate" x-transition @click.away="showCreate = false" class="absolute right-0 top-12 z-50 bg-gray-900 border border-white/10 rounded-xl p-4 shadow-2xl w-72">
         <form method="POST" action="{{ url_for('create_portfolio') }}">
             <label class="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">Portfolio Name</label>
-            <input type="text" name="name" required placeholder="PSL 2026 Main" class="w-full bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white mb-3 outline-none focus:border-emerald-500">
+            <input type="text" name="name" required placeholder="{{ league_config.short }} {{ league_config.season }} Main" class="w-full bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white mb-3 outline-none focus:border-emerald-500">
             <label class="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">Starting Bankroll</label>
             <input type="number" name="bankroll" required placeholder="10000" step="100" class="w-full bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white mb-3 outline-none focus:border-emerald-500">
             <button type="submit" class="w-full px-3 py-2 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">Create</button>
@@ -255,7 +255,7 @@
         <h3 class="text-lg font-bold text-white mb-2">No Portfolio Yet</h3>
         <p class="text-gray-500 text-sm mb-6">Create a portfolio to start tracking your bets and P&L.</p>
         <form method="POST" action="{{ url_for('create_portfolio') }}" class="inline-flex items-center gap-3">
-            <input type="text" name="name" required placeholder="Portfolio name" value="PSL 2026" class="bg-gray-900 border border-white/10 rounded-lg px-4 py-2 text-sm text-white outline-none focus:border-emerald-500">
+            <input type="text" name="name" required placeholder="Portfolio name" value="{{ league_config.short }} {{ league_config.season }}" class="bg-gray-900 border border-white/10 rounded-lg px-4 py-2 text-sm text-white outline-none focus:border-emerald-500">
             <input type="number" name="bankroll" required placeholder="Bankroll" value="10000" step="100" class="bg-gray-900 border border-white/10 rounded-lg px-4 py-2 text-sm text-white outline-none focus:border-emerald-500 w-32">
             <button type="submit" class="px-6 py-2 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white">Create Portfolio</button>
         </form>

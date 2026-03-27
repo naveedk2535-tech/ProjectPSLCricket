@@ -248,19 +248,29 @@
                 {% if recent_results %}
                 <div class="space-y-2">
                     {% for result in recent_results %}
-                    <div class="flex items-center justify-between py-1 {% if not loop.last %}border-b border-gray-800/20{% endif %}">
+                    <div class="flex items-center justify-between py-1.5 {% if not loop.last %}border-b border-gray-800/20{% endif %}">
                         <div class="min-w-0 flex-1">
                             <p class="text-[11px] font-medium text-white truncate">{{ result.team_a }} vs {{ result.team_b }}</p>
-                            <p class="text-[10px] text-gray-500">{{ result.score|default('-') }}</p>
+                            {% if result.winner %}
+                            <p class="text-[10px] text-emerald-400 font-semibold">{{ result.winner }} won</p>
+                            {% elif result.score and result.score != '-' and result.score != 'None' %}
+                            <p class="text-[10px] text-gray-400">{{ result.score }}</p>
+                            {% else %}
+                            <p class="text-[10px] text-amber-400">Result pending</p>
+                            {% endif %}
                         </div>
-                        {% if result.prediction_correct %}
-                        <span class="w-4 h-4 rounded-full bg-emerald-500/15 flex items-center justify-center flex-shrink-0 ml-2">
-                            <svg class="w-2.5 h-2.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
-                        </span>
+                        {% if result.winner %}
+                            {% if result.prediction_correct %}
+                            <span class="w-4 h-4 rounded-full bg-emerald-500/15 flex items-center justify-center flex-shrink-0 ml-2">
+                                <svg class="w-2.5 h-2.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                            </span>
+                            {% else %}
+                            <span class="w-4 h-4 rounded-full bg-red-500/15 flex items-center justify-center flex-shrink-0 ml-2">
+                                <svg class="w-2.5 h-2.5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </span>
+                            {% endif %}
                         {% else %}
-                        <span class="w-4 h-4 rounded-full bg-red-500/15 flex items-center justify-center flex-shrink-0 ml-2">
-                            <svg class="w-2.5 h-2.5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/></svg>
-                        </span>
+                        <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-400">PENDING</span>
                         {% endif %}
                     </div>
                     {% endfor %}

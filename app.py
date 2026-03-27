@@ -382,6 +382,28 @@ def dashboard():
         "model_accuracy": accuracy,
     }
 
+    # Team standings (Elo-based) for the current league
+    team_standings = db.fetch_all(
+        "SELECT team, elo, matches_played, wins, losses, form_last5, streak_type, streak_length "
+        "FROM team_ratings WHERE league = ? ORDER BY elo DESC",
+        [league]
+    )
+
+    # Top players for the current league
+    top_players = db.fetch_all(
+        "SELECT name, team, role, impact_score, batting_avg, batting_sr, bowling_avg, bowling_economy, matches_played "
+        "FROM player_stats WHERE league = ? AND impact_score IS NOT NULL "
+        "ORDER BY impact_score DESC LIMIT 15",
+        [league]
+    )
+
+    # Recent matches (from matches table) for current league
+    recent_matches = db.fetch_all(
+        "SELECT match_date, team_a, team_b, winner, win_margin, win_type, innings1_runs, innings2_runs "
+        "FROM matches WHERE league = ? ORDER BY match_date DESC LIMIT 10",
+        [league]
+    )
+
     return render_template(
         "dashboard.html",
         upcoming=upcoming,
@@ -394,6 +416,9 @@ def dashboard():
         stats=stats,
         teams=config.TEAMS if league == "psl" else config.IPL_TEAMS,
         now=datetime.utcnow(),
+        team_standings=team_standings,
+        top_players=top_players,
+        recent_matches=recent_matches,
     )
 
 

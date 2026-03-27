@@ -2410,6 +2410,37 @@ def api_refresh_data():
     except Exception as exc:
         results["predictions"] = f"error: {exc}"
 
+    # 6. Generate tracker entries for predicted matches
+    try:
+        tracker_count = 0
+        predicted = db.fetch_all(
+            "SELECT f.*, p.team_a_win, p.team_b_win, p.confidence "
+            "FROM fixtures f JOIN predictions p ON f.match_date = p.match_date AND f.team_a = p.team_a AND f.team_b = p.team_b "
+            "WHERE f.status = 'SCHEDULED' AND f.league = ? AND p.league = ?",
+            [league, league]
+        )
+        now_ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+        for fix in predicted:
+            team_a_win = fix.get("team_a_win", 0.5) or 0.5
+            team_b_win = fix.get("team_b_win", 0.5) or 0.5
+            predicted_winner = fix["team_a"] if team_a_win >= team_b_win else fix["team_b"]
+            conf = fix.get("confidence", 0.5) or 0.5
+            try:
+                db.execute(
+                    """INSERT OR IGNORE INTO model_tracker
+                       (match_date, team_a, team_b, venue, league, predicted_winner,
+                        team_a_prob, team_b_prob, confidence, status, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)""",
+                    [fix["match_date"], fix["team_a"], fix["team_b"], fix.get("venue"),
+                     league, predicted_winner, team_a_win, team_b_win, conf, now_ts]
+                )
+                tracker_count += 1
+            except Exception:
+                pass
+        results["tracker"] = f"{tracker_count} entries"
+    except Exception as exc:
+        results["tracker"] = f"error: {exc}"
+
     # Log refresh timestamps for each source
     now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
     for source, detail in results.items():

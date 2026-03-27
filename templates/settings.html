@@ -207,7 +207,7 @@
           <div class="flex justify-between">
             <span class="text-gray-500">P&L</span>
             <span class="font-semibold {% if p.pnl > 0 %}text-emerald-400{% elif p.pnl < 0 %}text-red-400{% else %}text-gray-400{% endif %}">
-              {{ '%+,.0f'|format(p.pnl) }}
+              {{ '%+.0f'|format(p.pnl) }}
             </span>
           </div>
           <div class="flex justify-between">

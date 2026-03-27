@@ -97,32 +97,21 @@
         </div>
     </div>
 
-    <!-- 2. PSL Section -->
-    {% if psl_models %}
+    <!-- 2. Current League Models -->
+    {% set current_models = psl_models if current_league == 'psl' else ipl_models %}
+    {% if current_models %}
     <div>
         <div class="flex items-center gap-3 mb-4">
-            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-            <h2 class="text-base font-bold text-white">Pakistan Super League</h2>
-            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">PSL</span>
+            <span class="w-2.5 h-2.5 rounded-full {% if current_league == 'psl' %}bg-emerald-500{% else %}bg-blue-500{% endif %}"></span>
+            <h2 class="text-base font-bold text-white">{{ league_config.name }}</h2>
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider
+                {% if current_league == 'psl' %}bg-emerald-500/15 text-emerald-400 border border-emerald-500/20
+                {% else %}bg-blue-500/15 text-blue-400 border border-blue-500/20{% endif %}">
+                {{ league_config.short }}
+            </span>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {% for m in psl_models %}
-            {{ model_card(m) }}
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- 3. IPL Section -->
-    {% if ipl_models %}
-    <div>
-        <div class="flex items-center gap-3 mb-4">
-            <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
-            <h2 class="text-base font-bold text-white">Indian Premier League</h2>
-            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-blue-500/15 text-blue-400 border border-blue-500/20">IPL</span>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {% for m in ipl_models %}
+            {% for m in current_models %}
             {{ model_card(m) }}
             {% endfor %}
         </div>

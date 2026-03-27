@@ -1,7 +1,7 @@
 """
-Reddit sentiment via PRAW for PSL cricket teams.
-Subreddits: r/Cricket, r/PakCricket, r/PSL
-Uses VADER sentiment scoring.
+Reddit sentiment via PRAW for PSL/IPL cricket teams.
+Uses 1 batch search per subreddit instead of per-team searches.
+VADER sentiment scoring with signal keyword detection.
 """
 
 import praw
@@ -15,7 +15,6 @@ from data.team_names import standardise, get_all_teams, get_abbreviation
 
 analyzer = SentimentIntensityAnalyzer()
 
-# Keywords that signal important events
 SIGNAL_KEYWORDS = {
     "negative": ["injury", "injured", "dropped", "suspended", "banned", "out of",
                   "ruled out", "hamstring", "fracture", "strain", "unfit", "miss",
@@ -39,87 +38,127 @@ def _get_reddit():
         return None
 
 
-def fetch_team_sentiment(team):
-    """Fetch and analyze Reddit sentiment for a team."""
-    cache_key = f"reddit_{team}".replace(" ", "_")
+def fetch_all_teams(league="psl"):
+    """
+    Fetch sentiment for all teams using 1 batch search per subreddit.
+    Instead of 8 separate searches (one per team), we search for the league
+    name once and parse which teams are mentioned.
+    """
+    cache_key = f"reddit_all_{league}"
     cached = check_cache(cache_key, config.CACHE_TTL["sentiment"])
     if cached:
         return cached
 
     if not can_call("reddit"):
-        return cached
+        return cached or {}
 
     reddit = _get_reddit()
     if not reddit:
-        return None
+        return {}
 
-    team_name = standardise(team)
-    abbrev = get_abbreviation(team_name)
-    search_terms = [team_name, abbrev]
+    # Determine league search term and subreddits
+    if league == "psl":
+        search_term = "PSL"
+        subreddits = config.REDDIT_SUBREDDITS
+        team_names = config.TEAM_NAMES
+    else:
+        search_term = "IPL"
+        subreddits = getattr(config, "REDDIT_SUBREDDITS_IPL", ["Cricket", "ipl"])
+        team_names = config.IPL_TEAM_NAMES
 
-    scores = []
-    volume = 0
-    keywords_found = []
-
+    # Collect all posts from batch search (1 call per subreddit)
+    all_posts = []
     try:
-        for subreddit_name in config.REDDIT_SUBREDDITS:
+        for sub_name in subreddits:
             try:
-                subreddit = reddit.subreddit(subreddit_name)
-                for term in search_terms:
-                    for post in subreddit.search(term, time_filter="week", limit=10):
-                        text = f"{post.title} {post.selftext}"
-                        sentiment = analyzer.polarity_scores(text)
-                        scores.append(sentiment["compound"])
-                        volume += 1
-
-                        # Check for signal keywords
-                        text_lower = text.lower()
-                        for kw in SIGNAL_KEYWORDS["negative"]:
-                            if kw in text_lower:
-                                keywords_found.append(f"-{kw}")
-                        for kw in SIGNAL_KEYWORDS["positive"]:
-                            if kw in text_lower:
-                                keywords_found.append(f"+{kw}")
-
-                        # Top comments
+                subreddit = reddit.subreddit(sub_name)
+                for post in subreddit.search(search_term, time_filter="week", limit=50):
+                    text = f"{post.title} {post.selftext}"
+                    # Get top comments too
+                    comments_text = []
+                    try:
                         post.comments.replace_more(limit=0)
-                        for comment in post.comments[:5]:
-                            c_sentiment = analyzer.polarity_scores(comment.body)
-                            scores.append(c_sentiment["compound"])
-                            volume += 1
+                        for comment in post.comments[:3]:
+                            comments_text.append(comment.body)
+                    except Exception:
+                        pass
+                    all_posts.append({
+                        "text": text,
+                        "comments": comments_text,
+                    })
             except Exception:
                 continue
 
-        record_call("reddit", f"sentiment/{team_name}", 200)
+        record_call("reddit", f"sentiment_batch/{league}", 200)
 
     except Exception as e:
-        print(f"[Reddit] Error for {team_name}: {e}")
-        record_call("reddit", f"sentiment/{team_name}", 0)
-        return None
+        print(f"[Reddit] Batch error: {e}")
+        record_call("reddit", f"sentiment_batch/{league}", 0)
+        return {}
 
-    if not scores:
+    # Now parse team mentions and score per team
+    results = {}
+    for team_name in team_names:
+        team_std = standardise(team_name)
+        abbrev = get_abbreviation(team_name) or ""
+
+        scores = []
+        volume = 0
+        keywords_found = []
+
+        for post in all_posts:
+            text = post["text"]
+            text_lower = text.lower()
+
+            # Check if this post mentions this team
+            mentioned = (
+                team_name.lower() in text_lower or
+                team_std.lower() in text_lower or
+                (abbrev and len(abbrev) >= 2 and f" {abbrev.lower()} " in f" {text_lower} ")
+            )
+
+            if not mentioned:
+                continue
+
+            sentiment = analyzer.polarity_scores(text)
+            scores.append(sentiment["compound"])
+            volume += 1
+
+            # Signal keywords
+            for kw in SIGNAL_KEYWORDS["negative"]:
+                if kw in text_lower:
+                    keywords_found.append(f"-{kw}")
+            for kw in SIGNAL_KEYWORDS["positive"]:
+                if kw in text_lower:
+                    keywords_found.append(f"+{kw}")
+
+            # Score comments too
+            for comment in post["comments"]:
+                if team_name.lower() in comment.lower() or team_std.lower() in comment.lower():
+                    c_sentiment = analyzer.polarity_scores(comment)
+                    scores.append(c_sentiment["compound"])
+                    volume += 1
+
+        if scores:
+            avg_score = sum(scores) / len(scores)
+            positive = sum(1 for s in scores if s > 0.05) / len(scores) * 100
+            negative = sum(1 for s in scores if s < -0.05) / len(scores) * 100
+            neutral = 100 - positive - negative
+            signal = "bullish" if avg_score > 0.15 else ("bearish" if avg_score < -0.15 else "neutral")
+        else:
+            avg_score, positive, negative, neutral = 0.0, 0.0, 0.0, 100.0
+            signal = "neutral"
+
+        # Trend vs previous
+        prev = db.fetch_one(
+            "SELECT score FROM sentiment WHERE team = ? AND source = 'reddit' ORDER BY scored_at DESC LIMIT 1",
+            [team_std]
+        )
+        trend = round(avg_score - prev["score"], 3) if prev else 0.0
+
         result = {
-            "team": team_name, "source": "reddit",
-            "score": 0.0, "trend": 0.0, "volume": 0,
-            "positive_pct": 0.0, "negative_pct": 0.0, "neutral_pct": 100.0,
-            "keywords": "", "signal": "neutral",
-        }
-    else:
-        avg_score = sum(scores) / len(scores)
-        positive = sum(1 for s in scores if s > 0.05) / len(scores) * 100
-        negative = sum(1 for s in scores if s < -0.05) / len(scores) * 100
-        neutral = 100 - positive - negative
-
-        signal = "neutral"
-        if avg_score > 0.15:
-            signal = "bullish"
-        elif avg_score < -0.15:
-            signal = "bearish"
-
-        result = {
-            "team": team_name, "source": "reddit",
-            "score": round(avg_score, 3),
-            "trend": 0.0,
+            "team": team_std, "source": "reddit",
+            "score": round(avg_score, 3), "trend": trend,
             "volume": volume,
             "positive_pct": round(positive, 1),
             "negative_pct": round(negative, 1),
@@ -127,28 +166,19 @@ def fetch_team_sentiment(team):
             "keywords": ",".join(list(set(keywords_found))[:10]),
             "signal": signal,
         }
+        results[team_std] = result
+        _save_sentiment(result)
 
-    # Calculate trend vs previous
-    prev = db.fetch_one(
-        "SELECT score FROM sentiment WHERE team = ? AND source = 'reddit' ORDER BY scored_at DESC LIMIT 1",
-        [team_name]
-    )
-    if prev:
-        result["trend"] = round(result["score"] - prev["score"], 3)
-
-    save_cache(cache_key, result)
-    return result
-
-
-def fetch_all_teams():
-    """Fetch sentiment for all PSL teams."""
-    results = {}
-    for team in get_all_teams():
-        sentiment = fetch_team_sentiment(team)
-        if sentiment:
-            results[team] = sentiment
-            _save_sentiment(sentiment)
+    save_cache(cache_key, results)
     return results
+
+
+# Keep backward compat
+def fetch_team_sentiment(team):
+    """Fetch sentiment for one team (uses batch internally)."""
+    all_results = fetch_all_teams()
+    team_std = standardise(team)
+    return all_results.get(team_std)
 
 
 def _save_sentiment(data):

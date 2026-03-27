@@ -1,6 +1,7 @@
 """
-NewsAPI client for PSL cricket headline sentiment.
+NewsAPI client for PSL/IPL cricket headline sentiment.
 Free tier: 100 requests/day.
+Uses 1 batch call per league instead of 1 call per team.
 """
 
 import requests
@@ -22,113 +23,122 @@ CRICKET_KEYWORDS = {
 }
 
 
-def fetch_team_news(team):
-    """Fetch and analyze news sentiment for a PSL team."""
-    team_name = standardise(team)
-    cache_key = f"news_{team_name}".replace(" ", "_")
+def fetch_all_teams(league="psl"):
+    """
+    Fetch news sentiment for all teams in ONE API call.
+    Search for the league name, then parse which teams are mentioned.
+    """
+    cache_key = f"news_all_{league}"
     cached = check_cache(cache_key, config.CACHE_TTL["sentiment"])
     if cached:
         return cached
 
     if not can_call("newsapi"):
-        return cached
+        return cached or {}
 
-    query = f'"{team_name}" AND (cricket OR PSL)'
+    # One batch query for the whole league
+    league_query = "PSL OR \"Pakistan Super League\"" if league == "psl" else "IPL OR \"Indian Premier League\""
     from_date = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%d")
 
     try:
         resp = requests.get(
             f"{config.NEWSAPI_BASE}/everything",
             params={
-                "q": query,
+                "q": league_query,
                 "from": from_date,
                 "sortBy": "publishedAt",
                 "language": "en",
-                "pageSize": 20,
+                "pageSize": 100,
                 "apiKey": config.NEWSAPI_KEY,
             },
-            timeout=10,
+            timeout=15,
         )
-        record_call("newsapi", f"everything/{team_name}", resp.status_code)
+        record_call("newsapi", f"everything/{league}", resp.status_code)
 
         if resp.status_code != 200:
-            return None
+            return {}
 
-        data = resp.json()
-        articles = data.get("articles", [])
+        articles = resp.json().get("articles", [])
 
     except requests.RequestException as e:
-        print(f"[NewsAPI] Error for {team_name}: {e}")
-        record_call("newsapi", f"everything/{team_name}", 0)
-        return None
+        print(f"[NewsAPI] Error: {e}")
+        record_call("newsapi", f"everything/{league}", 0)
+        return {}
 
-    scores = []
-    keywords_found = []
-
-    for article in articles:
-        text = f"{article.get('title', '')} {article.get('description', '')}"
-        sentiment = analyzer.polarity_scores(text)
-        scores.append(sentiment["compound"])
-
-        text_lower = text.lower()
-        for kw in CRICKET_KEYWORDS["negative"]:
-            if kw in text_lower:
-                keywords_found.append(f"-{kw}")
-        for kw in CRICKET_KEYWORDS["positive"]:
-            if kw in text_lower:
-                keywords_found.append(f"+{kw}")
-
-    if not scores:
-        result = {
-            "team": team_name, "source": "news",
-            "score": 0.0, "trend": 0.0, "volume": 0,
-            "positive_pct": 0.0, "negative_pct": 0.0, "neutral_pct": 100.0,
-            "keywords": "", "signal": "neutral",
-        }
+    # Get team list for this league
+    if league == "psl":
+        team_names = config.TEAM_NAMES
     else:
-        avg_score = sum(scores) / len(scores)
-        positive = sum(1 for s in scores if s > 0.05) / len(scores) * 100
-        negative = sum(1 for s in scores if s < -0.05) / len(scores) * 100
-        neutral = 100 - positive - negative
+        team_names = config.IPL_TEAM_NAMES
 
-        signal = "neutral"
-        if avg_score > 0.15:
-            signal = "bullish"
-        elif avg_score < -0.15:
-            signal = "bearish"
+    # Parse articles and assign to teams based on mentions
+    results = {}
+    for team_name in team_names:
+        team_std = standardise(team_name)
+        abbrev = get_abbreviation(team_name) or ""
+        # Find articles mentioning this team
+        team_articles = []
+        for article in articles:
+            text = f"{article.get('title', '')} {article.get('description', '')}"
+            text_lower = text.lower()
+            if (team_name.lower() in text_lower or
+                team_std.lower() in text_lower or
+                (abbrev and f" {abbrev.lower()} " in f" {text_lower} ")):
+                team_articles.append(text)
+
+        scores = []
+        keywords_found = []
+        for text in team_articles:
+            sentiment = analyzer.polarity_scores(text)
+            scores.append(sentiment["compound"])
+            text_lower = text.lower()
+            for kw in CRICKET_KEYWORDS["negative"]:
+                if kw in text_lower:
+                    keywords_found.append(f"-{kw}")
+            for kw in CRICKET_KEYWORDS["positive"]:
+                if kw in text_lower:
+                    keywords_found.append(f"+{kw}")
+
+        if scores:
+            avg_score = sum(scores) / len(scores)
+            positive = sum(1 for s in scores if s > 0.05) / len(scores) * 100
+            negative = sum(1 for s in scores if s < -0.05) / len(scores) * 100
+            neutral = 100 - positive - negative
+            signal = "bullish" if avg_score > 0.15 else ("bearish" if avg_score < -0.15 else "neutral")
+        else:
+            avg_score, positive, negative, neutral = 0.0, 0.0, 0.0, 100.0
+            signal = "neutral"
+
+        # Calculate trend vs previous
+        prev = db.fetch_one(
+            "SELECT score FROM sentiment WHERE team = ? AND source = 'news' ORDER BY scored_at DESC LIMIT 1",
+            [team_std]
+        )
+        trend = round(avg_score - prev["score"], 3) if prev else 0.0
 
         result = {
-            "team": team_name, "source": "news",
-            "score": round(avg_score, 3),
-            "trend": 0.0,
-            "volume": len(articles),
+            "team": team_std, "source": "news",
+            "score": round(avg_score, 3), "trend": trend,
+            "volume": len(team_articles),
             "positive_pct": round(positive, 1),
             "negative_pct": round(negative, 1),
             "neutral_pct": round(neutral, 1),
             "keywords": ",".join(list(set(keywords_found))[:10]),
             "signal": signal,
         }
+        results[team_std] = result
+        _save_sentiment(result)
 
-    prev = db.fetch_one(
-        "SELECT score FROM sentiment WHERE team = ? AND source = 'news' ORDER BY scored_at DESC LIMIT 1",
-        [team_name]
-    )
-    if prev:
-        result["trend"] = round(result["score"] - prev["score"], 3)
-
-    save_cache(cache_key, result)
-    return result
-
-
-def fetch_all_teams():
-    """Fetch news sentiment for all PSL teams."""
-    results = {}
-    for team in get_all_teams():
-        sentiment = fetch_team_news(team)
-        if sentiment:
-            results[team] = sentiment
-            _save_sentiment(sentiment)
+    save_cache(cache_key, results)
     return results
+
+
+# Keep backward compat
+def fetch_team_news(team):
+    """Fetch news for a single team (uses batch internally)."""
+    all_results = fetch_all_teams()
+    team_std = standardise(team)
+    return all_results.get(team_std)
 
 
 def _save_sentiment(data):

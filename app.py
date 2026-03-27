@@ -2341,10 +2341,10 @@ def api_refresh_data():
 
     # 1. Fixtures from CricAPI
     try:
-        from data.cricket_api import get_psl_fixtures, save_fixtures_to_db
-        fixtures = get_psl_fixtures()
+        from data.cricket_api import get_fixtures, save_fixtures_to_db
+        fixtures = get_fixtures(league=league)
         if fixtures:
-            save_fixtures_to_db(fixtures)
+            save_fixtures_to_db(fixtures, league=league)
         results["fixtures"] = f"{len(fixtures)} fetched" if fixtures else "no new fixtures (cached/rate-limited)"
     except Exception as exc:
         results["fixtures"] = f"error: {exc}"
@@ -2352,9 +2352,9 @@ def api_refresh_data():
     # 2. Odds from The Odds API
     try:
         from data.odds_api import get_odds, save_odds_to_db
-        odds = get_odds()
+        odds = get_odds(league=league)
         if odds:
-            save_odds_to_db(odds)
+            save_odds_to_db(odds, league=league)
         results["odds"] = f"{len(odds)} fetched" if odds else "no odds available yet"
     except Exception as exc:
         results["odds"] = f"error: {exc}"

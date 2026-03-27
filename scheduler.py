@@ -63,112 +63,117 @@ def log_error(task, msg):
 # ============================================================================
 
 def task_fixtures():
-    """Fetch upcoming PSL fixtures from CricAPI and save to DB."""
+    """Fetch upcoming fixtures from CricAPI for all leagues and save to DB."""
     task = "fixtures"
-    log_info(task, "Fetching PSL fixtures...")
-    try:
-        fixtures = cricket_api.get_psl_fixtures()
-        if not fixtures:
-            log_warn(task, "No fixtures returned from API (may be cached or rate-limited)")
-            return
-        cricket_api.save_fixtures_to_db(fixtures)
-        log_info(task, f"Saved {len(fixtures)} fixtures to database")
-    except Exception as e:
-        log_error(task, f"Failed: {e}")
-        traceback.print_exc()
+    for league in ("psl", "ipl"):
+        log_info(task, f"Fetching {league.upper()} fixtures...")
+        try:
+            fixtures = cricket_api.get_fixtures(league=league)
+            if not fixtures:
+                log_warn(task, f"No {league.upper()} fixtures returned from API (may be cached or rate-limited)")
+                continue
+            cricket_api.save_fixtures_to_db(fixtures, league=league)
+            log_info(task, f"Saved {len(fixtures)} {league.upper()} fixtures to database")
+        except Exception as e:
+            log_error(task, f"{league.upper()} failed: {e}")
+            traceback.print_exc()
 
 
 def task_odds():
-    """Fetch bookmaker odds for upcoming PSL matches."""
+    """Fetch bookmaker odds for upcoming matches for all leagues."""
     task = "odds"
-    log_info(task, "Fetching odds...")
-    try:
-        odds_list = odds_api.get_odds()
-        if not odds_list:
-            log_warn(task, "No odds returned (may be off-season or rate-limited)")
-            return
-        odds_api.save_odds_to_db(odds_list)
-        log_info(task, f"Saved odds for {len(odds_list)} matches")
-    except Exception as e:
-        log_error(task, f"Failed: {e}")
-        traceback.print_exc()
+    for league in ("psl", "ipl"):
+        log_info(task, f"Fetching {league.upper()} odds...")
+        try:
+            odds_list = odds_api.get_odds(league=league)
+            if not odds_list:
+                log_warn(task, f"No {league.upper()} odds returned (may be off-season or rate-limited)")
+                continue
+            odds_api.save_odds_to_db(odds_list, league=league)
+            log_info(task, f"Saved odds for {len(odds_list)} {league.upper()} matches")
+        except Exception as e:
+            log_error(task, f"{league.upper()} failed: {e}")
+            traceback.print_exc()
 
 
 def task_weather():
-    """Fetch weather forecasts for all scheduled fixtures."""
+    """Fetch weather forecasts for all scheduled fixtures across all leagues."""
     task = "weather"
-    log_info(task, "Fetching weather data for upcoming fixtures...")
-    try:
-        fixtures = db.fetch_all(
-            "SELECT * FROM fixtures WHERE status = 'SCHEDULED' AND match_date >= date('now')"
-        )
-        if not fixtures:
-            log_info(task, "No upcoming scheduled fixtures found")
-            return
-        fetched = 0
-        for f in fixtures:
-            if not f["venue"] or not f["match_date"]:
-                continue
-            weather = weather_api.get_match_weather(
-                f["venue"], f["match_date"], f.get("match_time")
+    for league in ("psl", "ipl"):
+        log_info(task, f"Fetching {league.upper()} weather data for upcoming fixtures...")
+        try:
+            fixtures = db.fetch_all(
+                "SELECT * FROM fixtures WHERE status = 'SCHEDULED' AND match_date >= date('now') AND league = ?",
+                [league]
             )
-            if weather:
-                weather_api.save_weather_to_db(weather)
-                fetched += 1
-        log_info(task, f"Fetched weather for {fetched}/{len(fixtures)} fixtures")
-    except Exception as e:
-        log_error(task, f"Failed: {e}")
-        traceback.print_exc()
+            if not fixtures:
+                log_info(task, f"No upcoming scheduled {league.upper()} fixtures found")
+                continue
+            fetched = 0
+            for f in fixtures:
+                if not f["venue"] or not f["match_date"]:
+                    continue
+                weather = weather_api.get_match_weather(
+                    f["venue"], f["match_date"], f.get("match_time")
+                )
+                if weather:
+                    weather_api.save_weather_to_db(weather, league=league)
+                    fetched += 1
+            log_info(task, f"Fetched weather for {fetched}/{len(fixtures)} {league.upper()} fixtures")
+        except Exception as e:
+            log_error(task, f"{league.upper()} failed: {e}")
+            traceback.print_exc()
 
 
 def task_sentiment():
-    """Run sentiment analysis (Reddit + News) for all teams."""
+    """Run sentiment analysis (Reddit + News) for all teams across all leagues."""
     task = "sentiment"
-    log_info(task, "Running sentiment analysis...")
-    try:
-        reddit_results = reddit_client.fetch_all_teams()
-        news_results = news_client.fetch_all_teams()
+    for league in ("psl", "ipl"):
+        log_info(task, f"Running {league.upper()} sentiment analysis...")
+        try:
+            reddit_results = reddit_client.fetch_all_teams(league=league)
+            news_results = news_client.fetch_all_teams(league=league)
 
-        # Build combined sentiment per team
-        for team in get_all_teams():
-            reddit_s = reddit_results.get(team)
-            news_s = news_results.get(team)
-            r_score = reddit_s["score"] if reddit_s else 0.0
-            n_score = news_s["score"] if news_s else 0.0
-            r_vol = reddit_s["volume"] if reddit_s else 0
-            n_vol = news_s["volume"] if news_s else 0
-            total_vol = r_vol + n_vol
-            combined = (r_score * r_vol + n_score * n_vol) / total_vol if total_vol > 0 else 0.0
+            # Build combined sentiment per team
+            for team in get_all_teams(league=league):
+                reddit_s = reddit_results.get(team)
+                news_s = news_results.get(team)
+                r_score = reddit_s["score"] if reddit_s else 0.0
+                n_score = news_s["score"] if news_s else 0.0
+                r_vol = reddit_s["volume"] if reddit_s else 0
+                n_vol = news_s["volume"] if news_s else 0
+                total_vol = r_vol + n_vol
+                combined = (r_score * r_vol + n_score * n_vol) / total_vol if total_vol > 0 else 0.0
 
-            signal = "neutral"
-            if combined > 0.15:
-                signal = "bullish"
-            elif combined < -0.15:
-                signal = "bearish"
+                signal = "neutral"
+                if combined > 0.15:
+                    signal = "bullish"
+                elif combined < -0.15:
+                    signal = "bearish"
 
-            keywords = ""
-            if reddit_s and reddit_s.get("keywords"):
-                keywords = reddit_s["keywords"]
-            if news_s and news_s.get("keywords"):
-                keywords = f"{keywords},{news_s['keywords']}" if keywords else news_s["keywords"]
+                keywords = ""
+                if reddit_s and reddit_s.get("keywords"):
+                    keywords = reddit_s["keywords"]
+                if news_s and news_s.get("keywords"):
+                    keywords = f"{keywords},{news_s['keywords']}" if keywords else news_s["keywords"]
 
-            db.execute(
-                """INSERT INTO sentiment (team, source, score, trend, volume,
-                   positive_pct, negative_pct, neutral_pct, keywords, signal, scored_at)
-                   VALUES (?, 'combined', ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(team, source, scored_at) DO UPDATE SET
-                   score=excluded.score, trend=excluded.trend, volume=excluded.volume,
-                   keywords=excluded.keywords, signal=excluded.signal""",
-                [team, round(combined, 3), 0.0, total_vol,
-                 0.0, 0.0, 0.0, keywords, signal,
-                 datetime.utcnow().strftime("%Y-%m-%d")]
-            )
+                db.execute(
+                    """INSERT INTO sentiment (team, source, score, trend, volume,
+                       positive_pct, negative_pct, neutral_pct, keywords, signal, league, scored_at)
+                       VALUES (?, 'combined', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(team, source, scored_at) DO UPDATE SET
+                       score=excluded.score, trend=excluded.trend, volume=excluded.volume,
+                       keywords=excluded.keywords, signal=excluded.signal, league=excluded.league""",
+                    [team, round(combined, 3), 0.0, total_vol,
+                     0.0, 0.0, 0.0, keywords, signal, league,
+                     datetime.utcnow().strftime("%Y-%m-%d")]
+                )
 
-        total = len(reddit_results) + len(news_results)
-        log_info(task, f"Sentiment updated for {len(reddit_results)} Reddit + {len(news_results)} News sources")
-    except Exception as e:
-        log_error(task, f"Failed: {e}")
-        traceback.print_exc()
+            total = len(reddit_results) + len(news_results)
+            log_info(task, f"{league.upper()} sentiment updated for {len(reddit_results)} Reddit + {len(news_results)} News sources")
+        except Exception as e:
+            log_error(task, f"{league.upper()} failed: {e}")
+            traceback.print_exc()
 
 
 def task_predictions():

@@ -13,16 +13,18 @@ from data.rate_limiter import can_call, record_call, check_cache, save_cache
 from data.team_names import standardise
 
 
-def get_odds():
-    """Fetch odds for all upcoming PSL matches."""
-    cached = check_cache("odds_psl", config.CACHE_TTL["odds"])
+def get_odds(league="psl"):
+    """Fetch odds for all upcoming matches for the given league."""
+    cache_key = f"odds_{league}"
+    cached = check_cache(cache_key, config.CACHE_TTL["odds"])
     if cached:
         return cached.get("odds", [])
 
     if not can_call("odds_api"):
         return cached.get("odds", []) if cached else []
 
-    url = f"{config.ODDS_API_BASE}/sports/{config.ODDS_API_SPORT}/odds"
+    odds_sport = config.LEAGUES[league]["odds_sport"]
+    url = f"{config.ODDS_API_BASE}/sports/{odds_sport}/odds"
     params = {
         "apiKey": config.ODDS_API_KEY,
         "regions": "us,uk,eu,au",
@@ -73,7 +75,7 @@ def get_odds():
                 }
                 odds_list.append(odds_entry)
 
-        save_cache("odds_psl", {"odds": odds_list, "fetched_at": db.now_iso()})
+        save_cache(cache_key, {"odds": odds_list, "fetched_at": db.now_iso()})
         return odds_list
 
     except requests.RequestException as e:
@@ -139,26 +141,26 @@ def _find_best_odds(bookmakers, teams):
     }
 
 
-def save_odds_to_db(odds_list):
+def save_odds_to_db(odds_list, league="psl"):
     """Save odds to database."""
     for o in odds_list:
         db.execute(
             """INSERT INTO odds (match_date, team_a, team_b, team_a_odds, team_b_odds,
                over_under_line, over_odds, under_odds, bookmaker,
-               implied_prob_a, implied_prob_b, margin, fetched_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               implied_prob_a, implied_prob_b, margin, league, fetched_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(match_date, team_a, team_b, bookmaker) DO UPDATE SET
                team_a_odds=excluded.team_a_odds, team_b_odds=excluded.team_b_odds,
                over_under_line=excluded.over_under_line, over_odds=excluded.over_odds,
                under_odds=excluded.under_odds, implied_prob_a=excluded.implied_prob_a,
                implied_prob_b=excluded.implied_prob_b, margin=excluded.margin,
-               fetched_at=excluded.fetched_at""",
+               league=excluded.league, fetched_at=excluded.fetched_at""",
             [o["match_date"], o["team_a"], o["team_b"],
              o["team_a_odds"], o["team_b_odds"],
              o.get("over_under_line"), o.get("over_odds"), o.get("under_odds"),
              o.get("bookmaker", "best"),
              o["implied_prob_a"], o["implied_prob_b"], o["margin"],
-             o["fetched_at"]]
+             league, o["fetched_at"]]
         )
 
 

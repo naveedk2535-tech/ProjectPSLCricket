@@ -156,7 +156,7 @@ def calculate_dew_factor(weather, match_hour=20):
         }
 
 
-def save_weather_to_db(weather_data):
+def save_weather_to_db(weather_data, league="psl"):
     """Save weather data to database."""
     if not weather_data:
         return
@@ -164,19 +164,20 @@ def save_weather_to_db(weather_data):
     db.execute(
         """INSERT INTO weather (venue, match_date, temperature, humidity, dew_point,
            wind_speed, precipitation, cloud_cover, heavy_dew, dew_score,
-           weather_summary, fetched_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           weather_summary, league, fetched_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(venue, match_date) DO UPDATE SET
            temperature=excluded.temperature, humidity=excluded.humidity,
            dew_point=excluded.dew_point, wind_speed=excluded.wind_speed,
            heavy_dew=excluded.heavy_dew, dew_score=excluded.dew_score,
-           weather_summary=excluded.weather_summary, fetched_at=excluded.fetched_at""",
+           weather_summary=excluded.weather_summary, league=excluded.league,
+           fetched_at=excluded.fetched_at""",
         [weather_data["venue"], weather_data["match_date"],
          weather_data.get("temperature"), weather_data.get("humidity"),
          weather_data.get("dew_point"), weather_data.get("wind_speed"),
          weather_data.get("precipitation"), weather_data.get("cloud_cover"),
          weather_data.get("heavy_dew", 0), weather_data.get("dew_score", 0.0),
-         weather_data.get("weather_summary", ""), db.now_iso()]
+         weather_data.get("weather_summary", ""), league, db.now_iso()]
     )
 
 

@@ -166,8 +166,14 @@ def standardise_venue(venue):
     return venue
 
 
-def get_all_teams():
-    """Return list of canonical team names."""
+def get_all_teams(league="psl"):
+    """Return list of canonical team names for the given league."""
+    if league == "ipl":
+        try:
+            import config
+            return [t["name"] for t in config.IPL_TEAMS.values()]
+        except (ImportError, AttributeError):
+            return []
     return CANONICAL_TEAMS.copy()
 
 

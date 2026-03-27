@@ -42,23 +42,30 @@ def _make_request(endpoint, params=None):
         return cached
 
 
-def get_psl_fixtures():
-    """Fetch upcoming PSL matches."""
+def get_fixtures(league="psl"):
+    """Fetch upcoming fixtures for the given league (psl or ipl)."""
+    league_filters = {
+        "psl": {"keywords": ["psl", "pakistan super league", "super league"], "series_id": "psl-2026"},
+        "ipl": {"keywords": ["ipl", "indian premier league"], "series_id": "ipl-2025"},
+    }
+    lf = league_filters.get(league, league_filters["psl"])
+
     # Try series-specific endpoint first
-    data = _make_request("series_info", {"id": "psl-2026"})
+    data = _make_request("series_info", {"id": lf["series_id"]})
 
     if not data:
-        # Fallback: get current matches and filter for PSL
+        # Fallback: get current matches and filter
         data = _make_request("currentMatches", {"offset": 0})
 
+    cache_key = f"{league}_fixtures"
     if not data or "data" not in data:
-        cached = check_cache("psl_fixtures", config.CACHE_TTL["fixtures"])
+        cached = check_cache(cache_key, config.CACHE_TTL["fixtures"])
         return cached.get("fixtures", []) if cached else []
 
     fixtures = []
     for match in data.get("data", []):
         match_name = (match.get("name", "") + " " + match.get("series", "")).lower()
-        if "psl" in match_name or "pakistan super league" in match_name or "super league" in match_name:
+        if any(kw in match_name for kw in lf["keywords"]):
             teams = match.get("teams", [])
             if len(teams) >= 2:
                 fixture = {
@@ -74,23 +81,29 @@ def get_psl_fixtures():
                 }
                 fixtures.append(fixture)
 
-    save_cache("psl_fixtures", {"fixtures": fixtures, "fetched_at": db.now_iso()})
+    save_cache(cache_key, {"fixtures": fixtures, "fetched_at": db.now_iso()})
     return fixtures
 
 
-def save_fixtures_to_db(fixtures):
+# Backward compatibility
+get_psl_fixtures = lambda: get_fixtures("psl")
+
+
+def save_fixtures_to_db(fixtures, league="psl"):
     """Save fetched fixtures to database."""
+    season = config.LEAGUES[league]["season"]
     for f in fixtures:
         db.execute(
             """INSERT INTO fixtures (season, match_date, match_time, venue, team_a, team_b,
-               match_number, stage, status, cricapi_id, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               match_number, stage, status, cricapi_id, league, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(season, match_date, team_a, team_b)
                DO UPDATE SET status=excluded.status, match_time=excluded.match_time,
-               venue=excluded.venue, cricapi_id=excluded.cricapi_id, updated_at=excluded.updated_at""",
-            [config.CURRENT_SEASON, f["match_date"], f.get("match_time"), f["venue"],
+               venue=excluded.venue, cricapi_id=excluded.cricapi_id, league=excluded.league,
+               updated_at=excluded.updated_at""",
+            [season, f["match_date"], f.get("match_time"), f["venue"],
              f["team_a"], f["team_b"], f.get("match_number"), f.get("stage", "group"),
-             f["status"], f.get("cricapi_id"), db.now_iso()]
+             f["status"], f.get("cricapi_id"), league, db.now_iso()]
         )
 
 

@@ -1,69 +1,48 @@
 """
-Cricket match results scraper — multi-source approach.
+Cricket match data — TheSportsDB API (primary) + ESPN fallback (IPL).
 
-Sources (tried in order):
-  1. PSL: hblpsl.com/matches (official PSL site, HTML scraping)
-  2. IPL: ESPN API (site.api.espn.com, clean JSON)
-  3. Fallback: Cricbuzz HTML scraping (live-scores, recent-matches)
+Sources:
+  1. TheSportsDB (free, no key needed — use "3" as key)
+     - PSL league ID: 5067
+     - IPL league ID: 4460
+  2. ESPN API (fallback for IPL only)
 
-Replaces the dead cricbuzz-live.vercel.app (402 errors).
+Replaces the old multi-source scraper (PSL site + Cricbuzz HTML).
 """
 
-import re
 import json
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 
+import config
 from database import db
 from data.rate_limiter import can_call, record_call, check_cache, save_cache
 from data.team_names import standardise, standardise_venue
 
-# ── Browser-like headers to avoid blocks ──────────────────────────────────────
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.5",
+# ── TheSportsDB configuration ──────────────────────────────────────────────
+SPORTSDB_BASE = "https://www.thesportsdb.com/api/v1/json/3"
+
+LEAGUE_IDS = {
+    "psl": 5067,
+    "ipl": 4460,
 }
 
-# ── PSL team name mapping (abbreviation / site variants → canonical) ──────────
-PSL_TEAM_MAP = {
-    # Full names
-    "lahore qalandars": "Lahore Qalandars",
-    "karachi kings": "Karachi Kings",
-    "islamabad united": "Islamabad United",
-    "peshawar zalmi": "Peshawar Zalmi",
-    "multan sultans": "Multan Sultans",
-    "quetta gladiators": "Quetta Gladiators",
-    "hyderabad kingsmen": "Hyderabad Kingsmen",
-    "rawalpindi pindiz": "Rawalpindi Pindiz",
-    # Common abbreviations
-    "lhq": "Lahore Qalandars",
-    "lq": "Lahore Qalandars",
-    "lahore": "Lahore Qalandars",
-    "krk": "Karachi Kings",
-    "kk": "Karachi Kings",
-    "karachi": "Karachi Kings",
-    "isu": "Islamabad United",
-    "islamabad": "Islamabad United",
-    "psz": "Peshawar Zalmi",
-    "pz": "Peshawar Zalmi",
-    "peshawar": "Peshawar Zalmi",
-    "ms": "Multan Sultans",
-    "multan": "Multan Sultans",
-    "qtg": "Quetta Gladiators",
-    "qg": "Quetta Gladiators",
-    "quetta": "Quetta Gladiators",
-    "hydk": "Hyderabad Kingsmen",
-    "hk": "Hyderabad Kingsmen",
-    "hyderabad kingsmen": "Hyderabad Kingsmen",
-    "rwp": "Rawalpindi Pindiz",
-    "rp": "Rawalpindi Pindiz",
-    "rawalpindi": "Rawalpindi Pindiz",
+SEASONS = {
+    "psl": config.LEAGUES["psl"]["season"],   # "2026"
+    "ipl": config.LEAGUES["ipl"]["season"],    # "2025"
 }
 
+# ── Team name pre-mapping (applied BEFORE standardise()) ────────────────────
+# Maps TheSportsDB names that standardise() can't resolve on its own.
+SPORTSDB_TEAM_MAP = {
+    # PSL
+    "Hyderabad Houston Kingsmen": "Hyderabad Kingsmen",
+    "Pindiz": "Rawalpindi Pindiz",
+    # IPL
+    "Royal Challengers Bangalore": "Royal Challengers Bengaluru",
+}
+
+# ── IPL team mapping (for ESPN fallback) ────────────────────────────────────
 IPL_TEAM_MAP = {
     "chennai super kings": "Chennai Super Kings",
     "csk": "Chennai Super Kings",
@@ -79,6 +58,7 @@ IPL_TEAM_MAP = {
     "punjab kings": "Punjab Kings",
     "kings xi punjab": "Punjab Kings",
     "pbks": "Punjab Kings",
+    "pk": "Punjab Kings",
     "rajasthan royals": "Rajasthan Royals",
     "rr": "Rajasthan Royals",
     "sunrisers hyderabad": "Sunrisers Hyderabad",
@@ -89,903 +69,489 @@ IPL_TEAM_MAP = {
     "lsg": "Lucknow Super Giants",
 }
 
-# Known Cricbuzz PSL 2026 match IDs (for direct scraping)
-CRICBUZZ_PSL_MATCH_IDS = {
-    148962: "lq-vs-hk",
-    148963: "qg-vs-kk",
-    148973: "pz-vs-rwp",
-}
+# ESPN endpoint for IPL fallback
+ESPN_IPL_URL = "https://site.api.espn.com/apis/site/v2/sports/cricket/8048/scoreboard"
 
-# ── ESPN league IDs ───────────────────────────────────────────────────────────
-ESPN_LEAGUE_IDS = {
-    "ipl": "8048",
-    "psl": "8953",  # PSL on ESPN (may not always have data)
-}
+# Cache TTL: 10 minutes
+CACHE_TTL = 600
 
-CACHE_TTL = 600  # 10 minutes
+# ── Helpers ─────────────────────────────────────────────────────────────────
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Helper functions
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _standardise_team(name, league="psl"):
-    """Map a scraped team name to our canonical name."""
+def _map_team_name(name, league="psl"):
+    """Map a TheSportsDB / ESPN team name to canonical form."""
     if not name:
-        return ""
-    name_clean = name.strip()
-    name_lower = name_clean.lower().strip()
-    team_map = PSL_TEAM_MAP if league == "psl" else IPL_TEAM_MAP
-
-    # Direct lookup
-    if name_lower in team_map:
-        return team_map[name_lower]
-
-    # Partial match — check if any key is contained in the name or vice versa
-    for key, val in team_map.items():
-        if len(key) > 2 and (key in name_lower or name_lower in key):
-            return val
-
-    # Fall back to the global standardise()
-    return standardise(name_clean)
+        return name
+    # Apply pre-mapping first
+    mapped = SPORTSDB_TEAM_MAP.get(name, name)
+    # Then run through standardise() for PSL teams
+    if league == "psl":
+        return standardise(mapped)
+    # For IPL, try the IPL map, then return as-is
+    lower = mapped.lower()
+    if lower in IPL_TEAM_MAP:
+        return IPL_TEAM_MAP[lower]
+    return mapped
 
 
-def _fetch_html(url, cache_key=None):
-    """Fetch HTML from a URL with caching and browser headers."""
-    if cache_key:
-        cached = check_cache(cache_key, CACHE_TTL)
-        if cached and isinstance(cached, dict) and cached.get("html"):
-            return cached["html"]
-
+def _parse_score(raw):
+    """Safely parse a score string to int (returns None for non-numeric)."""
+    if raw is None:
+        return None
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=20)
-        if resp.status_code != 200:
-            print(f"[CricScrape] HTTP {resp.status_code} from {url}")
-            return None
-        html = resp.text
-        if cache_key:
-            save_cache(cache_key, {"html": html, "fetched_at": datetime.now().isoformat()})
-        return html
-    except Exception as e:
-        print(f"[CricScrape] Error fetching {url}: {e}")
+        return int(raw)
+    except (ValueError, TypeError):
         return None
 
 
-def _fetch_json(url, cache_key=None):
-    """Fetch JSON from a URL with caching."""
-    if cache_key:
-        cached = check_cache(cache_key, CACHE_TTL)
-        if cached:
-            return cached
-
-    try:
-        resp = requests.get(url, headers={**HEADERS, "Accept": "application/json"}, timeout=20)
-        if resp.status_code != 200:
-            print(f"[CricScrape] HTTP {resp.status_code} from {url}")
-            return None
-        data = resp.json()
-        if cache_key:
-            save_cache(cache_key, data)
-        return data
-    except Exception as e:
-        print(f"[CricScrape] Error fetching {url}: {e}")
-        return None
+def _is_live_status(status):
+    """Check if a status string indicates a live/in-progress match."""
+    if not status:
+        return False
+    live_keywords = ["1H", "2H", "HT", "innings", "In Progress",
+                     "1st Innings", "2nd Innings", "Innings Break"]
+    status_lower = status.lower()
+    return any(kw.lower() in status_lower for kw in live_keywords)
 
 
-def _parse_score(score_str):
-    """Parse a score string like '178/5' or '178/5 (20)' into (runs, wickets)."""
-    if not score_str:
-        return 0, 0
-    score_str = str(score_str).strip()
-    m = re.search(r'(\d+)[/-](\d+)', score_str)
-    if m:
-        return int(m.group(1)), int(m.group(2))
-    # All out — just a number
-    m2 = re.match(r'^(\d+)$', score_str.split('(')[0].strip())
-    if m2:
-        return int(m2.group(1)), 10
-    return 0, 0
+# ── TheSportsDB API ────────────────────────────────────────────────────────
 
 
-def _parse_overs(score_str):
-    """Extract overs from a score string like '178/5 (19.3)'."""
-    if not score_str:
-        return 0.0
-    m = re.search(r'\((\d+\.?\d*)\)', str(score_str))
-    if m:
-        return float(m.group(1))
-    return 0.0
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Source 1: Official PSL site (hblpsl.com)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _scrape_psl_official():
-    """Scrape match results from hblpsl.com/matches."""
-    url = "https://hblpsl.com/matches"
-    html = _fetch_html(url, cache_key="psl_official_matches")
-    if not html:
+def _fetch_sportsdb_season(league="psl"):
+    """
+    Fetch all events for the current season from TheSportsDB.
+    Returns raw list of event dicts, or [] on failure.
+    Uses 10-minute cache.
+    """
+    league_id = LEAGUE_IDS.get(league)
+    season = SEASONS.get(league)
+    if not league_id or not season:
+        print(f"[SportsDB] Unknown league: {league}")
         return []
 
-    results = []
+    cache_key = f"sportsdb_{league}_{season}"
+    cached = check_cache(cache_key, ttl_seconds=CACHE_TTL)
+    if cached is not None:
+        print(f"[SportsDB] Using cached data for {league.upper()} {season}")
+        record_call("cricket_api", f"sportsdb_season_{league}", 200, cached=True)
+        return cached
+
+    if not can_call("cricket_api"):
+        print("[SportsDB] Rate limit reached, falling back to cache")
+        stale = check_cache(cache_key)
+        return stale if stale else []
+
+    url = f"{SPORTSDB_BASE}/eventsseason.php?id={league_id}&s={season}"
+    print(f"[SportsDB] Fetching {league.upper()} {season}: {url}")
 
     try:
-        from bs4 import BeautifulSoup
-        results = _parse_psl_with_bs4(html)
-    except ImportError:
-        results = _parse_psl_with_regex(html)
+        resp = requests.get(url, timeout=15)
+        record_call("cricket_api", url, resp.status_code)
+        resp.raise_for_status()
 
-    print(f"[PSL Official] Scraped {len(results)} completed matches")
-    return results
+        data = resp.json()
+        events = data.get("events") or []
+        save_cache(cache_key, events)
+        print(f"[SportsDB] Got {len(events)} events for {league.upper()} {season}")
+        return events
 
-
-def _parse_psl_with_bs4(html):
-    """Parse PSL official site HTML using BeautifulSoup."""
-    from bs4 import BeautifulSoup
-    soup = BeautifulSoup(html, "html.parser")
-    results = []
-
-    # Look for match cards — the PSL site typically has match result sections
-    # Try multiple selectors since site structure may vary
-    match_cards = soup.find_all("div", class_=re.compile(r"match|fixture|result|card", re.I))
-    if not match_cards:
-        # Broader search: any section with score-like content
-        match_cards = soup.find_all(["div", "section", "article"])
-
-    for card in match_cards:
-        text = card.get_text(" ", strip=True)
-        # Must contain a score pattern like "123/4" and team names
-        if not re.search(r'\d{2,3}[/-]\d{1,2}', text):
-            continue
-
-        result = _extract_match_from_text(text, "psl")
-        if result and result.get("winner"):
-            # Avoid duplicates
-            dup = False
-            for existing in results:
-                if existing["team_a"] == result["team_a"] and existing["team_b"] == result["team_b"] and existing.get("match_date") == result.get("match_date"):
-                    dup = True
-                    break
-            if not dup:
-                results.append(result)
-
-    # If structured parsing didn't work, try the full-page regex approach
-    if not results:
-        results = _parse_psl_with_regex(html)
-
-    return results
+    except Exception as e:
+        print(f"[SportsDB] Error fetching {league.upper()}: {e}")
+        record_call("cricket_api", url, 500)
+        stale = check_cache(cache_key)
+        if stale:
+            print("[SportsDB] Falling back to stale cache")
+            return stale
+        return []
 
 
-def _parse_psl_with_regex(html):
-    """Parse PSL official site HTML using regex patterns."""
-    results = []
-
-    # Strip HTML tags for text analysis
-    text = re.sub(r'<[^>]+>', ' ', html)
-    text = re.sub(r'\s+', ' ', text)
-
-    # PSL team names to look for
-    psl_teams = [
-        "Lahore Qalandars", "Karachi Kings", "Islamabad United",
-        "Peshawar Zalmi", "Multan Sultans", "Quetta Gladiators",
-        "Hyderabad Kingsmen", "Rawalpindi Pindiz"
-    ]
-
-    # Pattern: Team1 score vs Team2 score (or similar)
-    # E.g., "Lahore Qalandars 178/5 (20) ... Karachi Kings 165/8 (20)"
-    for i, team_a_name in enumerate(psl_teams):
-        for team_b_name in psl_teams[i + 1:]:
-            # Look for both teams near each other with scores
-            pattern = (
-                rf'({re.escape(team_a_name)})\s+.*?'
-                rf'(\d{{2,3}}[/-]\d{{1,2}}(?:\s*\(\d+\.?\d*\))?)\s+.*?'
-                rf'({re.escape(team_b_name)})\s+.*?'
-                rf'(\d{{2,3}}[/-]\d{{1,2}}(?:\s*\(\d+\.?\d*\))?)'
-            )
-            for m in re.finditer(pattern, text, re.IGNORECASE | re.DOTALL):
-                ta = _standardise_team(m.group(1), "psl")
-                score_a = m.group(2)
-                tb = _standardise_team(m.group(3), "psl")
-                score_b = m.group(4)
-
-                runs_a, wkts_a = _parse_score(score_a)
-                runs_b, wkts_b = _parse_score(score_b)
-
-                if runs_a == 0 and runs_b == 0:
-                    continue
-
-                winner = ta if runs_a > runs_b else tb if runs_b > runs_a else None
-
-                results.append({
-                    "team_a": ta,
-                    "team_b": tb,
-                    "match_date": "",  # Hard to get from regex; will match by teams
-                    "winner": winner,
-                    "innings1_runs": runs_a,
-                    "innings1_wickets": wkts_a,
-                    "innings2_runs": runs_b,
-                    "innings2_wickets": wkts_b,
-                    "venue": "",
-                    "status": "COMPLETED",
-                    "source": "psl_official",
-                })
-
-            # Also try reverse order (team_b first)
-            pattern_rev = (
-                rf'({re.escape(team_b_name)})\s+.*?'
-                rf'(\d{{2,3}}[/-]\d{{1,2}}(?:\s*\(\d+\.?\d*\))?)\s+.*?'
-                rf'({re.escape(team_a_name)})\s+.*?'
-                rf'(\d{{2,3}}[/-]\d{{1,2}}(?:\s*\(\d+\.?\d*\))?)'
-            )
-            for m in re.finditer(pattern_rev, text, re.IGNORECASE | re.DOTALL):
-                tb2 = _standardise_team(m.group(1), "psl")
-                score_b2 = m.group(2)
-                ta2 = _standardise_team(m.group(3), "psl")
-                score_a2 = m.group(4)
-
-                runs_b2, wkts_b2 = _parse_score(score_b2)
-                runs_a2, wkts_a2 = _parse_score(score_a2)
-
-                if runs_a2 == 0 and runs_b2 == 0:
-                    continue
-
-                winner = ta2 if runs_a2 > runs_b2 else tb2 if runs_b2 > runs_a2 else None
-
-                # Deduplicate
-                dup = False
-                for existing in results:
-                    if set([existing["team_a"], existing["team_b"]]) == set([ta2, tb2]):
-                        dup = True
-                        break
-                if not dup:
-                    results.append({
-                        "team_a": ta2,
-                        "team_b": tb2,
-                        "match_date": "",
-                        "winner": winner,
-                        "innings1_runs": runs_a2,
-                        "innings1_wickets": wkts_a2,
-                        "innings2_runs": runs_b2,
-                        "innings2_wickets": wkts_b2,
-                        "venue": "",
-                        "status": "COMPLETED",
-                        "source": "psl_official",
-                    })
-
-    # Also try to find dates near team mentions
-    date_pattern = r'(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+\d{4})'
-    for result in results:
-        # Look for dates near the team names in the text
-        ta_pos = text.lower().find(result["team_a"].lower())
-        if ta_pos >= 0:
-            nearby = text[max(0, ta_pos - 200):ta_pos + 500]
-            date_match = re.search(date_pattern, nearby, re.IGNORECASE)
-            if date_match:
-                try:
-                    # Try multiple date formats
-                    for fmt in ["%d %B %Y", "%d %b %Y"]:
-                        try:
-                            dt = datetime.strptime(date_match.group(1).strip(), fmt)
-                            result["match_date"] = dt.strftime("%Y-%m-%d")
-                            break
-                        except ValueError:
-                            continue
-                except Exception:
-                    pass
-
-    return results
-
-
-def _extract_match_from_text(text, league):
-    """Extract match result from a block of text containing team names and scores."""
-    psl_teams = list(PSL_TEAM_MAP.values()) if league == "psl" else list(IPL_TEAM_MAP.values())
-    # Deduplicate
-    psl_teams = list(set(psl_teams))
-
-    found_teams = []
-    for team in psl_teams:
-        if team.lower() in text.lower():
-            found_teams.append(team)
-
-    if len(found_teams) < 2:
-        return None
-
-    # Get scores
-    scores = re.findall(r'(\d{2,3})[/-](\d{1,2})', text)
-    if len(scores) < 2:
-        return None
-
-    team_a = found_teams[0]
-    team_b = found_teams[1]
-    runs_a, wkts_a = int(scores[0][0]), int(scores[0][1])
-    runs_b, wkts_b = int(scores[1][0]), int(scores[1][1])
+def _parse_event(event, league="psl"):
+    """Parse a single TheSportsDB event dict into a normalized match dict."""
+    home_team = _map_team_name(event.get("strHomeTeam", ""), league)
+    away_team = _map_team_name(event.get("strAwayTeam", ""), league)
+    venue_raw = event.get("strVenue", "")
+    venue = standardise_venue(venue_raw) if league == "psl" else venue_raw
+    status = event.get("strStatus", "")
+    home_score = _parse_score(event.get("intHomeScore"))
+    away_score = _parse_score(event.get("intAwayScore"))
+    match_date = event.get("dateEvent", "")
+    match_time = event.get("strTime", "")
+    event_id = event.get("idEvent", "")
 
     # Determine winner
     winner = None
-    text_lower = text.lower()
-    if "won" in text_lower:
-        for t in found_teams:
-            # Check if "TeamName won" appears
-            if re.search(rf'{re.escape(t)}\s+won', text, re.IGNORECASE):
-                winner = t
-                break
-    if not winner:
-        winner = team_a if runs_a > runs_b else team_b if runs_b > runs_a else None
+    if home_score is not None and away_score is not None:
+        if home_score > away_score:
+            winner = home_team
+        elif away_score > home_score:
+            winner = away_team
+        # Equal scores = super over or no result (winner stays None)
 
-    # Try to find date
-    match_date = ""
-    date_match = re.search(r'(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+\d{4})', text, re.IGNORECASE)
-    if date_match:
-        for fmt in ["%d %B %Y", "%d %b %Y"]:
-            try:
-                dt = datetime.strptime(date_match.group(1).strip(), fmt)
-                match_date = dt.strftime("%Y-%m-%d")
-                break
-            except ValueError:
-                continue
+    # Determine our internal status
+    if status == "Match Finished":
+        internal_status = "COMPLETED"
+    elif _is_live_status(status):
+        internal_status = "LIVE"
+    elif status == "Not Started" or status == "NS":
+        internal_status = "SCHEDULED"
+    elif "Postponed" in (status or ""):
+        internal_status = "POSTPONED"
+    elif "Cancelled" in (status or "") or "Abandoned" in (status or ""):
+        internal_status = "ABANDONED"
+    else:
+        internal_status = "SCHEDULED"
 
     return {
-        "team_a": _standardise_team(team_a, league),
-        "team_b": _standardise_team(team_b, league),
+        "event_id": str(event_id),
         "match_date": match_date,
-        "winner": _standardise_team(winner, league) if winner else None,
-        "innings1_runs": runs_a,
-        "innings1_wickets": wkts_a,
-        "innings2_runs": runs_b,
-        "innings2_wickets": wkts_b,
-        "venue": "",
-        "status": "COMPLETED",
-        "source": "psl_official",
+        "match_time": match_time,
+        "home_team": home_team,
+        "away_team": away_team,
+        "team_a": home_team,
+        "team_b": away_team,
+        "venue": venue,
+        "home_score": home_score,
+        "away_score": away_score,
+        "winner": winner,
+        "status": internal_status,
+        "raw_status": status,
+        "league": league,
+        "season": SEASONS.get(league, ""),
     }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Source 2: ESPN API (works great for IPL, may also have PSL)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _fetch_espn_results(league="ipl"):
-    """Fetch match results from ESPN cricket API."""
-    league_id = ESPN_LEAGUE_IDS.get(league, ESPN_LEAGUE_IDS.get("ipl"))
-    url = f"https://site.api.espn.com/apis/site/v2/sports/cricket/{league_id}/scoreboard"
-    cache_key = f"espn_{league}_scoreboard"
-    data = _fetch_json(url, cache_key)
-    if not data:
-        return []
-
-    results = []
-    events = data.get("events", [])
-
-    for event in events:
-        try:
-            competition = event.get("competitions", [{}])[0]
-            competitors = competition.get("competitors", [])
-            if len(competitors) < 2:
-                continue
-
-            status_obj = event.get("status", {})
-            status_type = status_obj.get("type", {})
-            is_completed = status_type.get("completed", False)
-            status_name = status_type.get("name", "")
-            status_text = status_obj.get("type", {}).get("shortDetail", "")
-
-            # Parse teams
-            team_a_info = competitors[0]
-            team_b_info = competitors[1]
-            team_a_name = team_a_info.get("team", {}).get("displayName", "")
-            team_b_name = team_b_info.get("team", {}).get("displayName", "")
-
-            ta = _standardise_team(team_a_name, league)
-            tb = _standardise_team(team_b_name, league)
-
-            # Parse scores
-            score_a = team_a_info.get("score", "0")
-            score_b = team_b_info.get("score", "0")
-            # ESPN sometimes gives just runs as the score
-            runs_a, wkts_a = _parse_score(score_a)
-            runs_b, wkts_b = _parse_score(score_b)
-
-            # If score is just a number (ESPN often does this), wickets may not be present
-            if runs_a == 0 and wkts_a == 0:
-                try:
-                    runs_a = int(score_a)
-                except (ValueError, TypeError):
-                    pass
-            if runs_b == 0 and wkts_b == 0:
-                try:
-                    runs_b = int(score_b)
-                except (ValueError, TypeError):
-                    pass
-
-            # Try to get detailed score from linescores
-            linescores_a = team_a_info.get("linescores", [])
-            linescores_b = team_b_info.get("linescores", [])
-            if linescores_a:
-                inn1 = linescores_a[0] if linescores_a else {}
-                runs_a = inn1.get("runs", runs_a) or runs_a
-                wkts_a = inn1.get("wickets", wkts_a) or wkts_a
-            if linescores_b:
-                inn1 = linescores_b[0] if linescores_b else {}
-                runs_b = inn1.get("runs", runs_b) or runs_b
-                wkts_b = inn1.get("wickets", wkts_b) or wkts_b
-
-            # Parse date
-            match_date = ""
-            date_str = event.get("date", "")
-            if date_str:
-                try:
-                    dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-                    match_date = dt.strftime("%Y-%m-%d")
-                except Exception:
-                    pass
-
-            # Determine winner
-            winner = None
-            if is_completed:
-                a_winner = team_a_info.get("winner", False)
-                b_winner = team_b_info.get("winner", False)
-                if a_winner:
-                    winner = ta
-                elif b_winner:
-                    winner = tb
-                else:
-                    # Fall back to comparing scores
-                    if runs_a > runs_b:
-                        winner = ta
-                    elif runs_b > runs_a:
-                        winner = tb
-
-            venue = ""
-            venue_info = competition.get("venue", {})
-            if venue_info:
-                venue = venue_info.get("fullName", venue_info.get("shortName", ""))
-
-            match_result = {
-                "match_id": str(event.get("id", "")),
-                "team_a": ta,
-                "team_b": tb,
-                "match_date": match_date,
-                "winner": winner,
-                "innings1_runs": int(runs_a) if runs_a else 0,
-                "innings1_wickets": int(wkts_a) if wkts_a else 0,
-                "innings2_runs": int(runs_b) if runs_b else 0,
-                "innings2_wickets": int(wkts_b) if wkts_b else 0,
-                "venue": venue,
-                "status": "COMPLETED" if is_completed else status_name,
-                "source": "espn",
-            }
-
-            if is_completed and winner:
-                results.append(match_result)
-            elif not is_completed:
-                # Still useful for live tracking; append with live status
-                match_result["status"] = "LIVE"
-                results.append(match_result)
-
-        except Exception as e:
-            print(f"[ESPN] Error parsing event: {e}")
-            continue
-
-    print(f"[ESPN] Found {len(results)} matches for {league}")
-    return results
+# ── ESPN fallback (IPL only) ───────────────────────────────────────────────
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Source 3: Cricbuzz HTML scraping (fallback)
-# ─────────────────────────────────────────────────────────────────────────────
+def _fetch_espn_ipl():
+    """Fetch IPL scoreboard from ESPN API as fallback. Returns list of parsed match dicts."""
+    cache_key = "espn_ipl_scoreboard"
+    cached = check_cache(cache_key, ttl_seconds=CACHE_TTL)
+    if cached is not None:
+        print("[ESPN] Using cached IPL scoreboard")
+        record_call("cricket_api", "espn_ipl", 200, cached=True)
+        return cached
 
-def _scrape_cricbuzz_recent():
-    """Scrape recent match results from Cricbuzz HTML."""
-    url = "https://www.cricbuzz.com/cricket-match/live-scores/recent-matches"
-    html = _fetch_html(url, cache_key="cricbuzz_recent_html")
-    if not html:
-        return []
+    if not can_call("cricket_api"):
+        print("[ESPN] Rate limit reached")
+        stale = check_cache(cache_key)
+        return stale if stale else []
 
-    return _parse_cricbuzz_matches_html(html)
-
-
-def _scrape_cricbuzz_live():
-    """Scrape live matches from Cricbuzz HTML."""
-    url = "https://www.cricbuzz.com/cricket-match/live-scores"
-    html = _fetch_html(url, cache_key="cricbuzz_live_html")
-    if not html:
-        return []
-
-    return _parse_cricbuzz_matches_html(html, live_only=True)
-
-
-def _scrape_cricbuzz_match(match_id, slug="match"):
-    """Scrape a specific Cricbuzz match page."""
-    url = f"https://www.cricbuzz.com/live-cricket-scores/{match_id}/{slug}"
-    cache_key = f"cricbuzz_match_{match_id}"
-    html = _fetch_html(url, cache_key)
-    if not html:
-        return None
-
-    return _parse_cricbuzz_match_page(html)
-
-
-def _parse_cricbuzz_matches_html(html, live_only=False):
-    """Parse Cricbuzz match listing pages (recent or live)."""
-    results = []
-
+    print(f"[ESPN] Fetching IPL scoreboard: {ESPN_IPL_URL}")
     try:
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(html, "html.parser")
+        resp = requests.get(ESPN_IPL_URL, timeout=15)
+        record_call("cricket_api", ESPN_IPL_URL, resp.status_code)
+        resp.raise_for_status()
+        data = resp.json()
+        events = data.get("events", [])
 
-        # Cricbuzz uses div.cb-mtch-lst for match listings
-        match_sections = soup.find_all("div", class_=re.compile(r"cb-mtch-lst|cb-col-100|match-info", re.I))
-
-        for section in match_sections:
-            text = section.get_text(" ", strip=True)
-            text_lower = text.lower()
-
-            # Filter for PSL matches
-            if not any(kw in text_lower for kw in ["psl", "pakistan super league", "super league"]):
-                # Check if any PSL team is mentioned
-                psl_teams_lower = [t.lower() for t in set(PSL_TEAM_MAP.values())]
-                if not any(t in text_lower for t in psl_teams_lower):
+        matches = []
+        for ev in events:
+            try:
+                comp = ev["competitions"][0]
+                teams = comp.get("competitors", [])
+                if len(teams) < 2:
                     continue
 
-            result = _extract_match_from_text(text, "psl")
-            if result:
-                result["source"] = "cricbuzz"
-                if live_only:
-                    if "won" not in text_lower:
-                        result["status"] = "LIVE"
-                        results.append(result)
+                team_a_raw = teams[0].get("team", {}).get("displayName", "")
+                team_b_raw = teams[1].get("team", {}).get("displayName", "")
+                team_a = _map_team_name(team_a_raw, "ipl")
+                team_b = _map_team_name(team_b_raw, "ipl")
+
+                score_a = _parse_score(teams[0].get("score"))
+                score_b = _parse_score(teams[1].get("score"))
+
+                status_obj = ev.get("status", {}).get("type", {})
+                completed = status_obj.get("completed", False)
+                state = status_obj.get("state", "")
+
+                venue_info = comp.get("venue", {})
+                venue_name = venue_info.get("fullName", "")
+
+                date_str = ev.get("date", "")[:10]
+
+                winner = None
+                if score_a is not None and score_b is not None and completed:
+                    winner = team_a if score_a > score_b else team_b if score_b > score_a else None
+
+                if completed:
+                    internal_status = "COMPLETED"
+                elif state == "in":
+                    internal_status = "LIVE"
                 else:
-                    if result.get("winner"):
-                        results.append(result)
-    except ImportError:
-        # Regex fallback
-        # Strip tags
-        text = re.sub(r'<[^>]+>', '\n', html)
-        blocks = text.split('\n\n')
-        for block in blocks:
-            block_lower = block.lower()
-            if not any(kw in block_lower for kw in ["psl", "pakistan super league"]):
+                    internal_status = "SCHEDULED"
+
+                matches.append({
+                    "event_id": ev.get("id", ""),
+                    "match_date": date_str,
+                    "match_time": "",
+                    "home_team": team_a,
+                    "away_team": team_b,
+                    "team_a": team_a,
+                    "team_b": team_b,
+                    "venue": venue_name,
+                    "home_score": score_a,
+                    "away_score": score_b,
+                    "winner": winner,
+                    "status": internal_status,
+                    "raw_status": state,
+                    "league": "ipl",
+                    "season": SEASONS.get("ipl", ""),
+                })
+            except (KeyError, IndexError):
                 continue
-            result = _extract_match_from_text(block, "psl")
-            if result and result.get("winner"):
-                result["source"] = "cricbuzz"
-                results.append(result)
 
-    print(f"[Cricbuzz HTML] Found {len(results)} matches")
-    return results
+        save_cache(cache_key, matches)
+        print(f"[ESPN] Got {len(matches)} IPL matches")
+        return matches
 
-
-def _parse_cricbuzz_match_page(html):
-    """Parse a single Cricbuzz match detail page."""
-    try:
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(html, "html.parser")
-        text = soup.get_text(" ", strip=True)
-    except ImportError:
-        text = re.sub(r'<[^>]+>', ' ', html)
-        text = re.sub(r'\s+', ' ', text)
-
-    return _extract_match_from_text(text, "psl")
+    except Exception as e:
+        print(f"[ESPN] Error fetching IPL: {e}")
+        record_call("cricket_api", ESPN_IPL_URL, 500)
+        stale = check_cache(cache_key)
+        return stale if stale else []
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Public API — main functions
-# ─────────────────────────────────────────────────────────────────────────────
+# ── Public API ──────────────────────────────────────────────────────────────
+
+
+def get_season_matches(league="psl"):
+    """
+    Fetch ALL matches for the current season from TheSportsDB.
+    Returns list of parsed match dicts.
+    """
+    events = _fetch_sportsdb_season(league)
+    matches = [_parse_event(ev, league) for ev in events]
+    print(f"[get_season_matches] {league.upper()}: {len(matches)} total matches")
+    return matches
+
 
 def get_recent_results(league="psl"):
     """
-    Fetch recent completed matches for the given league.
-    Tries multiple sources in order of reliability.
-
-    Returns list of dicts with keys:
-      team_a, team_b, match_date, winner,
-      innings1_runs, innings1_wickets, innings2_runs, innings2_wickets
+    Returns only completed matches with parsed scores and winner.
+    Primary: TheSportsDB. Fallback for IPL: ESPN.
     """
-    results = []
+    matches = get_season_matches(league)
+    completed = [m for m in matches if m["status"] == "COMPLETED"]
 
-    if league == "psl":
-        # Source 1: Official PSL site
-        try:
-            psl_results = _scrape_psl_official()
-            if psl_results:
-                results.extend(psl_results)
-                print(f"[get_recent_results] Got {len(psl_results)} from PSL official")
-        except Exception as e:
-            print(f"[get_recent_results] PSL official scrape failed: {e}")
+    # If TheSportsDB returned nothing for IPL, try ESPN
+    if not completed and league == "ipl":
+        print("[get_recent_results] No IPL results from SportsDB, trying ESPN fallback")
+        espn = _fetch_espn_ipl()
+        completed = [m for m in espn if m["status"] == "COMPLETED"]
 
-        # Source 2: ESPN (may have PSL data)
-        if not results:
-            try:
-                espn_results = _fetch_espn_results(league="psl")
-                completed = [r for r in espn_results if r.get("winner")]
-                if completed:
-                    results.extend(completed)
-                    print(f"[get_recent_results] Got {len(completed)} from ESPN PSL")
-            except Exception as e:
-                print(f"[get_recent_results] ESPN PSL failed: {e}")
+    # Sort by date descending (most recent first)
+    completed.sort(key=lambda m: m["match_date"], reverse=True)
+    print(f"[get_recent_results] {league.upper()}: {len(completed)} completed matches")
+    return completed
 
-        # Source 3: Cricbuzz HTML scraping
-        if not results:
-            try:
-                cb_results = _scrape_cricbuzz_recent()
-                if cb_results:
-                    results.extend(cb_results)
-                    print(f"[get_recent_results] Got {len(cb_results)} from Cricbuzz HTML")
-            except Exception as e:
-                print(f"[get_recent_results] Cricbuzz scrape failed: {e}")
 
-        # Source 4: Known Cricbuzz match IDs (direct scrape)
-        if not results:
-            for mid, slug in CRICBUZZ_PSL_MATCH_IDS.items():
-                try:
-                    m = _scrape_cricbuzz_match(mid, slug)
-                    if m and m.get("winner"):
-                        results.append(m)
-                except Exception as e:
-                    print(f"[get_recent_results] Cricbuzz match {mid} failed: {e}")
+def get_upcoming_fixtures(league="psl"):
+    """
+    Returns matches with status "Not Started" as upcoming fixtures.
+    Primary: TheSportsDB. Fallback for IPL: ESPN.
+    """
+    matches = get_season_matches(league)
+    upcoming = [m for m in matches if m["status"] == "SCHEDULED"]
 
-    elif league == "ipl":
-        # IPL: ESPN is the primary (cleanest) source
-        try:
-            espn_results = _fetch_espn_results(league="ipl")
-            completed = [r for r in espn_results if r.get("winner")]
-            results.extend(completed)
-            print(f"[get_recent_results] Got {len(completed)} IPL results from ESPN")
-        except Exception as e:
-            print(f"[get_recent_results] ESPN IPL failed: {e}")
+    if not upcoming and league == "ipl":
+        print("[get_upcoming_fixtures] No IPL fixtures from SportsDB, trying ESPN fallback")
+        espn = _fetch_espn_ipl()
+        upcoming = [m for m in espn if m["status"] == "SCHEDULED"]
 
-    # Deduplicate by (team_a, team_b, date) — keep first occurrence
-    seen = set()
-    deduped = []
-    for r in results:
-        key = tuple(sorted([r["team_a"], r["team_b"]])) + (r.get("match_date", ""),)
-        if key not in seen:
-            seen.add(key)
-            deduped.append(r)
-
-    record_call("cricbuzz_scrape", endpoint=f"get_recent_results/{league}", response_code=200)
-    return deduped
+    upcoming.sort(key=lambda m: m["match_date"])
+    print(f"[get_upcoming_fixtures] {league.upper()}: {len(upcoming)} upcoming fixtures")
+    return upcoming
 
 
 def get_live_matches(league="psl"):
     """
-    Fetch currently live matches for the given league.
-
-    Returns list of dicts with keys:
-      team_a, team_b, score_a, score_b, status, venue
+    Returns matches currently in progress.
+    Primary: TheSportsDB. Fallback for IPL: ESPN.
     """
-    live = []
+    matches = get_season_matches(league)
+    live = [m for m in matches if m["status"] == "LIVE"]
 
-    if league == "psl":
-        # Try ESPN first (may have live PSL data)
-        try:
-            espn_results = _fetch_espn_results(league="psl")
-            for r in espn_results:
-                if r.get("status") == "LIVE":
-                    live.append({
-                        "match_id": r.get("match_id", ""),
-                        "team_a": r["team_a"],
-                        "team_b": r["team_b"],
-                        "score_a": f"{r['innings1_runs']}/{r['innings1_wickets']}" if r.get("innings1_runs") else "",
-                        "score_b": f"{r['innings2_runs']}/{r['innings2_wickets']}" if r.get("innings2_runs") else "",
-                        "status": r.get("status", "LIVE"),
-                        "venue": r.get("venue", ""),
-                        "source": "espn",
-                    })
-        except Exception as e:
-            print(f"[get_live_matches] ESPN PSL live failed: {e}")
+    if not live and league == "ipl":
+        espn = _fetch_espn_ipl()
+        live = [m for m in espn if m["status"] == "LIVE"]
 
-        # Try Cricbuzz HTML
-        if not live:
-            try:
-                cb_live = _scrape_cricbuzz_live()
-                for r in cb_live:
-                    live.append({
-                        "match_id": r.get("match_id", ""),
-                        "team_a": r["team_a"],
-                        "team_b": r["team_b"],
-                        "score_a": f"{r['innings1_runs']}/{r['innings1_wickets']}" if r.get("innings1_runs") else "",
-                        "score_b": f"{r['innings2_runs']}/{r['innings2_wickets']}" if r.get("innings2_runs") else "",
-                        "status": "LIVE",
-                        "venue": r.get("venue", ""),
-                        "source": "cricbuzz",
-                    })
-            except Exception as e:
-                print(f"[get_live_matches] Cricbuzz live scrape failed: {e}")
-
-        # Try known match IDs on Cricbuzz
-        if not live:
-            for mid, slug in CRICBUZZ_PSL_MATCH_IDS.items():
-                try:
-                    m = _scrape_cricbuzz_match(mid, slug)
-                    if m and not m.get("winner"):
-                        # Not completed = possibly live
-                        live.append({
-                            "match_id": str(mid),
-                            "team_a": m["team_a"],
-                            "team_b": m["team_b"],
-                            "score_a": f"{m['innings1_runs']}/{m['innings1_wickets']}",
-                            "score_b": f"{m['innings2_runs']}/{m['innings2_wickets']}",
-                            "status": "LIVE",
-                            "venue": m.get("venue", ""),
-                            "source": "cricbuzz",
-                        })
-                except Exception:
-                    continue
-
-    elif league == "ipl":
-        try:
-            espn_results = _fetch_espn_results(league="ipl")
-            for r in espn_results:
-                if r.get("status") == "LIVE":
-                    live.append({
-                        "match_id": r.get("match_id", ""),
-                        "team_a": r["team_a"],
-                        "team_b": r["team_b"],
-                        "score_a": f"{r['innings1_runs']}/{r['innings1_wickets']}" if r.get("innings1_runs") else "",
-                        "score_b": f"{r['innings2_runs']}/{r['innings2_wickets']}" if r.get("innings2_runs") else "",
-                        "status": "LIVE",
-                        "venue": r.get("venue", ""),
-                        "source": "espn",
-                    })
-        except Exception as e:
-            print(f"[get_live_matches] ESPN IPL live failed: {e}")
-
-    record_call("cricbuzz_scrape", endpoint=f"get_live_matches/{league}", response_code=200)
+    print(f"[get_live_matches] {league.upper()}: {len(live)} live matches")
     return live
 
 
 def update_completed_matches(league="psl"):
     """
-    Main function: fetch results from working sources and update
-    fixtures + matches tables in the database.
+    Main update function: fetch completed results and upsert into DB.
 
-    Called by the scheduler to settle completed games.
-    Returns the number of matches updated.
+    For each completed match:
+      - Determine winner (higher score)
+      - UPSERT into matches table
+      - Update fixture status to COMPLETED
+      - Log with print statements
+
+    Returns count of updated matches.
     """
-    results = get_recent_results(league=league)
+    results = get_recent_results(league)
+    if not results:
+        print(f"[update_completed_matches] No completed matches for {league.upper()}")
+        return 0
+
+    season = SEASONS.get(league, "")
     updated = 0
 
-    for result in results:
-        if not result.get("winner"):
+    for m in results:
+        team_a = m["team_a"]
+        team_b = m["team_b"]
+        venue = m["venue"]
+        match_date = m["match_date"]
+        home_score = m["home_score"]
+        away_score = m["away_score"]
+        winner = m["winner"]
+
+        if home_score is None or away_score is None:
             continue
 
-        team_a = standardise(result["team_a"])
-        team_b = standardise(result["team_b"])
-        match_date = result.get("match_date", "")
-        winner = standardise(result["winner"])
-        venue = standardise_venue(result.get("venue", "")) if result.get("venue") else ""
+        # Determine win margin and type
+        if winner == team_a:
+            win_margin = home_score - away_score
+            win_type = "runs"  # Simplified — we don't have innings detail from this API
+        elif winner == team_b:
+            win_margin = away_score - home_score
+            win_type = "runs"
+        else:
+            win_margin = 0
+            win_type = "no_result"
 
-        if not team_a or not team_b:
-            continue
-
-        # ── Update fixture status ─────────────────────────────────────────
-        fix = None
-        if match_date:
-            fix = db.fetch_one(
-                "SELECT id FROM fixtures WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ?",
-                [team_a, team_b, match_date, league]
-            )
-            if not fix:
-                # Try reverse team order
-                fix = db.fetch_one(
-                    "SELECT id FROM fixtures WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ?",
-                    [team_b, team_a, match_date, league]
-                )
-
-        if not fix and match_date:
-            # Try fuzzy date match (+-1 day, timezone differences)
-            try:
-                dt = datetime.strptime(match_date, "%Y-%m-%d")
-                for delta in [-1, 1]:
-                    alt_date = (dt + timedelta(days=delta)).strftime("%Y-%m-%d")
-                    fix = db.fetch_one(
-                        "SELECT id FROM fixtures WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ?",
-                        [team_a, team_b, alt_date, league]
-                    )
-                    if not fix:
-                        fix = db.fetch_one(
-                            "SELECT id FROM fixtures WHERE team_a = ? AND team_b = ? AND match_date = ? AND league = ?",
-                            [team_b, team_a, alt_date, league]
-                        )
-                    if fix:
-                        break
-            except ValueError:
-                pass
-
-        if not fix:
-            # Last resort: match by teams only (for undated results), pick most recent scheduled
-            fix = db.fetch_one(
-                """SELECT id FROM fixtures
-                   WHERE ((team_a = ? AND team_b = ?) OR (team_a = ? AND team_b = ?))
-                   AND league = ? AND status = 'SCHEDULED'
-                   ORDER BY match_date DESC LIMIT 1""",
-                [team_a, team_b, team_b, team_a, league]
-            )
-
-        if fix:
+        # UPSERT into matches table
+        try:
             db.execute(
-                "UPDATE fixtures SET status = 'COMPLETED', result = ?, updated_at = ? WHERE id = ?",
-                [f"{winner} won", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), fix["id"]]
+                """INSERT INTO matches (league, season, match_date, venue, team_a, team_b,
+                                        innings1_runs, innings2_runs, winner, win_margin, win_type)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(season, match_date, team_a, team_b) DO UPDATE SET
+                       venue = excluded.venue,
+                       innings1_runs = excluded.innings1_runs,
+                       innings2_runs = excluded.innings2_runs,
+                       winner = excluded.winner,
+                       win_margin = excluded.win_margin,
+                       win_type = excluded.win_type,
+                       league = excluded.league""",
+                [league, season, match_date, venue, team_a, team_b,
+                 home_score, away_score, winner, win_margin, win_type]
             )
+            print(f"  [matches] {match_date}: {team_a} {home_score} vs {team_b} {away_score} → Winner: {winner}")
+            updated += 1
+        except Exception as e:
+            print(f"  [matches] Error inserting {team_a} vs {team_b} ({match_date}): {e}")
 
-        # ── Insert/update match result ────────────────────────────────────
-        season = "2026" if league == "psl" else "2025"
+        # Update fixture status to COMPLETED
+        try:
+            db.execute(
+                """UPDATE fixtures SET status = 'COMPLETED', result = ?,
+                       updated_at = ?
+                   WHERE league = ? AND season = ? AND match_date = ?
+                     AND team_a = ? AND team_b = ?
+                     AND status != 'COMPLETED'""",
+                [f"{winner} won by {win_margin} {win_type}" if winner else "No result",
+                 db.now_iso(), league, season, match_date, team_a, team_b]
+            )
+        except Exception as e:
+            print(f"  [fixtures] Error updating fixture status for {team_a} vs {team_b}: {e}")
 
-        # We need a date — if none, try to get from fixture
-        if not match_date and fix:
-            fix_row = db.fetch_one("SELECT match_date FROM fixtures WHERE id = ?", [fix["id"]])
-            if fix_row:
-                match_date = fix_row["match_date"]
+        # Also try with teams swapped (fixture may have them in different order)
+        try:
+            db.execute(
+                """UPDATE fixtures SET status = 'COMPLETED', result = ?,
+                       updated_at = ?
+                   WHERE league = ? AND season = ? AND match_date = ?
+                     AND team_a = ? AND team_b = ?
+                     AND status != 'COMPLETED'""",
+                [f"{winner} won by {win_margin} {win_type}" if winner else "No result",
+                 db.now_iso(), league, season, match_date, team_b, team_a]
+            )
+        except Exception:
+            pass
 
-        if not match_date:
-            match_date = datetime.now().strftime("%Y-%m-%d")
-
-        db.execute(
-            """INSERT INTO matches (season, match_date, venue, team_a, team_b, winner,
-               innings1_runs, innings1_wickets, innings2_runs, innings2_wickets, league)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(season, match_date, team_a, team_b) DO UPDATE SET
-               winner=excluded.winner,
-               innings1_runs=excluded.innings1_runs, innings1_wickets=excluded.innings1_wickets,
-               innings2_runs=excluded.innings2_runs, innings2_wickets=excluded.innings2_wickets,
-               venue=COALESCE(NULLIF(excluded.venue, ''), venue)""",
-            [season, match_date, venue,
-             team_a, team_b, winner,
-             result.get("innings1_runs", 0), result.get("innings1_wickets", 0),
-             result.get("innings2_runs", 0), result.get("innings2_wickets", 0),
-             league]
-        )
-
-        updated += 1
-        print(f"[CricScrape] Updated: {team_a} vs {team_b} ({match_date}) -> {winner}")
-
-    print(f"[CricScrape] Total updated: {updated} matches for {league}")
+    print(f"[update_completed_matches] {league.upper()}: {updated} matches updated")
     return updated
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Convenience / backward-compatible functions
-# ─────────────────────────────────────────────────────────────────────────────
-
-def get_upcoming_matches(league="psl"):
+def sync_fixtures(league="psl"):
     """
-    Fetch upcoming matches. Currently relies on fixtures table
-    since scraping upcoming is less reliable than results.
-    Falls back to ESPN if available.
+    Sync upcoming fixtures from TheSportsDB into the fixtures table.
+    Inserts new fixtures that don't exist yet. Doesn't overwrite existing ones.
+
+    Returns count of newly inserted fixtures.
     """
-    upcoming = []
-
-    if league == "ipl":
-        try:
-            espn_results = _fetch_espn_results(league="ipl")
-            for r in espn_results:
-                if r.get("status") not in ("COMPLETED", "LIVE") and not r.get("winner"):
-                    upcoming.append({
-                        "match_id": r.get("match_id", ""),
-                        "team_a": r["team_a"],
-                        "team_b": r["team_b"],
-                        "match_date": r.get("match_date", ""),
-                        "venue": r.get("venue", ""),
-                    })
-        except Exception as e:
-            print(f"[get_upcoming] ESPN failed: {e}")
-
-    # For PSL, just pull from our fixtures table
+    upcoming = get_upcoming_fixtures(league)
     if not upcoming:
-        rows = db.fetch_all(
-            """SELECT team_a, team_b, match_date, venue
-               FROM fixtures
-               WHERE league = ? AND status = 'SCHEDULED' AND match_date >= date('now')
-               ORDER BY match_date ASC LIMIT 20""",
-            [league]
-        )
-        for row in (rows or []):
-            upcoming.append({
-                "team_a": row["team_a"],
-                "team_b": row["team_b"],
-                "match_date": row["match_date"],
-                "venue": row.get("venue", ""),
-            })
+        print(f"[sync_fixtures] No upcoming fixtures for {league.upper()}")
+        return 0
 
-    return upcoming
+    season = SEASONS.get(league, "")
+    inserted = 0
+
+    for m in upcoming:
+        team_a = m["team_a"]
+        team_b = m["team_b"]
+        venue = m["venue"]
+        match_date = m["match_date"]
+        match_time = m.get("match_time", "")
+        event_id = m.get("event_id", "")
+
+        # Check if fixture already exists (either team order)
+        existing = db.fetch_one(
+            """SELECT id FROM fixtures
+               WHERE league = ? AND season = ? AND match_date = ?
+                 AND ((team_a = ? AND team_b = ?) OR (team_a = ? AND team_b = ?))""",
+            [league, season, match_date, team_a, team_b, team_b, team_a]
+        )
+
+        if existing:
+            continue
+
+        try:
+            db.execute(
+                """INSERT INTO fixtures (league, season, match_date, match_time, venue,
+                                         team_a, team_b, status, cricapi_id, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 'SCHEDULED', ?, ?)""",
+                [league, season, match_date, match_time, venue,
+                 team_a, team_b, event_id, db.now_iso()]
+            )
+            print(f"  [fixtures] NEW: {match_date} {team_a} vs {team_b} @ {venue}")
+            inserted += 1
+        except Exception as e:
+            print(f"  [fixtures] Error inserting {team_a} vs {team_b}: {e}")
+
+    print(f"[sync_fixtures] {league.upper()}: {inserted} new fixtures inserted")
+    return inserted
+
+
+# ── Convenience / backward-compatible aliases ───────────────────────────────
+
+
+def fetch_live_scores(league="psl"):
+    """Alias for get_live_matches — used by live_predictor and scheduler."""
+    return get_live_matches(league)
+
+
+def fetch_recent_results(league="psl"):
+    """Alias for get_recent_results — used by scheduler."""
+    return get_recent_results(league)
+
+
+def refresh_all(league="psl"):
+    """
+    Full refresh: sync fixtures + update completed matches.
+    Called by scheduler and the Refresh Data button.
+    """
+    print(f"\n{'='*60}")
+    print(f"[refresh_all] Starting full refresh for {league.upper()}")
+    print(f"{'='*60}")
+
+    fixtures_count = sync_fixtures(league)
+    matches_count = update_completed_matches(league)
+
+    print(f"[refresh_all] Done — {fixtures_count} new fixtures, {matches_count} match results updated")
+    return {"fixtures_synced": fixtures_count, "matches_updated": matches_count}

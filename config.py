@@ -234,7 +234,7 @@ VENUES = {
 
 # ─── Rate Limits ────────────────────────────────────────────────────────────
 RATE_LIMITS = {
-    "cricket_api": {"calls": 8, "period_seconds": 86400},     # 100/day free, conserve
+    "cricket_api": {"calls": 30, "period_seconds": 86400},    # 100/day free, need calls for scorecards + fixtures + live
     "odds_api": {"calls": 12, "period_seconds": 86400},       # 500/month ≈ 16/day
     "reddit": {"calls": 6, "period_seconds": 86400},          # 1 batch call per league (was 8 per-team)
     "newsapi": {"calls": 6, "period_seconds": 86400},         # 1 batch call per league (was 8 per-team)

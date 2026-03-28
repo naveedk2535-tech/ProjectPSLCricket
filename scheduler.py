@@ -280,52 +280,105 @@ def task_tracker_generate():
 
 
 def _fetch_completed_scorecards():
-    """For completed fixtures without match results, try to fetch scorecards from CricAPI."""
-    completed = db.fetch_all(
-        "SELECT * FROM fixtures WHERE status = 'COMPLETED' AND cricapi_id IS NOT NULL"
+    """For completed/past fixtures without match results, try to fetch scorecards from CricAPI."""
+    from data.cricket_api import get_match_scorecard
+    from data.rate_limiter import can_call
+    from datetime import datetime
+
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+
+    # Find fixtures that are past their match date but still not settled
+    # Include both COMPLETED and SCHEDULED (in case status wasn't updated)
+    past_fixtures = db.fetch_all(
+        "SELECT * FROM fixtures WHERE match_date < ? AND cricapi_id IS NOT NULL "
+        "AND (status IN ('COMPLETED', 'LIVE', 'SCHEDULED')) ORDER BY match_date DESC LIMIT 10",
+        [today]
     )
+
     fetched = 0
-    for fix in completed:
+    for fix in past_fixtures:
         # Check if match already in matches table
         existing = db.fetch_one(
-            "SELECT id FROM matches WHERE match_date = ? AND team_a = ? AND team_b = ?",
-            [fix["match_date"], fix["team_a"], fix["team_b"]]
+            "SELECT id FROM matches WHERE match_date = ? AND "
+            "((team_a = ? AND team_b = ?) OR (team_a = ? AND team_b = ?)) AND league = ?",
+            [fix["match_date"], fix["team_a"], fix["team_b"],
+             fix["team_b"], fix["team_a"], fix.get("league", "psl")]
         )
         if existing:
+            # Match exists — just make sure fixture is marked COMPLETED
+            if fix["status"] != "COMPLETED":
+                db.execute("UPDATE fixtures SET status = 'COMPLETED' WHERE id = ?", [fix["id"]])
             continue
 
-        # Try to get scorecard from CricAPI
-        try:
-            from data.cricket_api import get_match_scorecard as get_scorecard
-            from data.rate_limiter import can_call
-            if not can_call("cricket_api"):
-                break
-            scorecard = get_scorecard(fix["cricapi_id"])
-            if scorecard and scorecard.get("status") in ("Match Over", "completed", "Complete"):
-                winner = standardise(scorecard.get("matchWinner", "")) if scorecard.get("matchWinner") else None
-                if not winner:
-                    # Try to parse from score data
-                    for team_score in scorecard.get("score", []):
-                        pass  # CricAPI format varies
+        if not can_call("cricket_api"):
+            log_warn("settle", "CricAPI rate limited — can't fetch more scorecards")
+            break
 
-                # Insert into matches
-                league = fix.get("league", "psl")
+        try:
+            scorecard = get_match_scorecard(fix["cricapi_id"])
+            if not scorecard:
+                log_info("settle", f"No scorecard yet for {fix['team_a']} vs {fix['team_b']} ({fix['match_date']})")
+                continue
+
+            # Parse winner from CricAPI response
+            winner = None
+            status = (scorecard.get("status", "") or "").lower()
+
+            if scorecard.get("matchWinner"):
+                winner = standardise(scorecard["matchWinner"])
+            elif "won" in status:
+                # Try to parse winner from status string like "Team A won by X runs"
+                for team_name in [fix["team_a"], fix["team_b"]]:
+                    if team_name.lower() in status:
+                        winner = team_name
+                        break
+
+            # Parse scores from scorecard
+            innings1_runs = 0
+            innings2_runs = 0
+            innings1_wickets = 0
+            innings2_wickets = 0
+            scores = scorecard.get("score", [])
+            if scores:
+                for i, sc in enumerate(scores[:2]):
+                    runs = sc.get("r", 0) or 0
+                    wickets = sc.get("w", 0) or 0
+                    if i == 0:
+                        innings1_runs = runs
+                        innings1_wickets = wickets
+                    elif i == 1:
+                        innings2_runs = runs
+                        innings2_wickets = wickets
+
+            league = fix.get("league", "psl")
+
+            if winner or innings1_runs > 0:
+                # Insert match result
                 db.execute(
-                    """INSERT OR IGNORE INTO matches (season, match_date, venue, team_a, team_b, winner, league)
-                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    """INSERT INTO matches (season, match_date, venue, team_a, team_b, winner,
+                       innings1_runs, innings1_wickets, innings2_runs, innings2_wickets, league)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(season, match_date, team_a, team_b) DO UPDATE SET
+                       winner=excluded.winner, innings1_runs=excluded.innings1_runs,
+                       innings2_runs=excluded.innings2_runs, league=excluded.league""",
                     [fix.get("season", "2026"), fix["match_date"], fix.get("venue"),
-                     fix["team_a"], fix["team_b"], winner, league]
+                     fix["team_a"], fix["team_b"], winner,
+                     innings1_runs, innings1_wickets, innings2_runs, innings2_wickets, league]
                 )
-                # Update fixture result
-                if winner:
-                    db.execute(
-                        "UPDATE fixtures SET result = ? WHERE id = ?",
-                        [f"{winner} won", fix["id"]]
-                    )
-                    fetched += 1
-                    print(f"[settle] Fetched scorecard: {fix['team_a']} vs {fix['team_b']} -> {winner}")
+
+                # Update fixture
+                result_text = f"{winner} won" if winner else "Completed"
+                db.execute(
+                    "UPDATE fixtures SET status = 'COMPLETED', result = ? WHERE id = ?",
+                    [result_text, fix["id"]]
+                )
+                fetched += 1
+                log_info("settle", f"Scorecard: {fix['team_a']} vs {fix['team_b']} -> {winner} ({innings1_runs}/{innings1_wickets} vs {innings2_runs}/{innings2_wickets})")
+            else:
+                log_info("settle", f"Scorecard returned but no winner yet: {fix['team_a']} vs {fix['team_b']}")
+
         except Exception as e:
-            print(f"[settle] Scorecard fetch error for {fix['team_a']} vs {fix['team_b']}: {e}")
+            log_warn("settle", f"Scorecard error for {fix['team_a']} vs {fix['team_b']}: {e}")
 
     return fetched
 
@@ -777,13 +830,15 @@ def run_daily():
     log_info("daily", "DAILY PIPELINE START")
     log_info("daily", "=" * 60)
 
+    # SETTLE FIRST — fetch scorecards from CricAPI before quota runs out
+    task_tracker_settle()
+    # Then refresh data
     task_fixtures()
     task_odds()
     task_weather()
     task_sentiment()
     task_predictions()
     task_tracker_generate()
-    task_tracker_settle()
     task_value_bets()
 
     log_info("daily", "DAILY PIPELINE COMPLETE")

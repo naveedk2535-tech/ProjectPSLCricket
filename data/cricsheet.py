@@ -241,13 +241,36 @@ def import_all_matches(league="psl"):
     imported = 0
     errors = 0
 
-    for csv_file in csv_files:
-        try:
-            # Read the file to check if it's a combined format
-            info = {}
-            ball_data_start = 0
+    # Separate info files from data files
+    info_files = [f for f in csv_files if "_info" in os.path.basename(f)]
+    data_files = [f for f in csv_files if "_info" not in os.path.basename(f)]
 
-            with open(csv_file, "r", encoding="utf-8") as f:
+    # Build a map: match_id -> (info_file, data_file)
+    match_map = {}
+    for f in info_files:
+        match_id = os.path.basename(f).replace("_info.csv", "")
+        match_map.setdefault(match_id, {})["info"] = f
+    for f in data_files:
+        match_id = os.path.basename(f).replace(".csv", "")
+        match_map.setdefault(match_id, {})["data"] = f
+
+    # Also handle combined format (single file with both info and ball data)
+    for f in data_files:
+        match_id = os.path.basename(f).replace(".csv", "")
+        if match_id not in match_map or "info" not in match_map[match_id]:
+            # Check if this data file also contains info lines
+            match_map.setdefault(match_id, {})["combined"] = f
+
+    for match_id, files in match_map.items():
+        try:
+            info = {}
+
+            # Read info from info file or combined file
+            info_source = files.get("info") or files.get("combined")
+            if not info_source:
+                continue
+
+            with open(info_source, "r", encoding="utf-8") as f:
                 for i, line in enumerate(f):
                     if line.startswith("info,"):
                         parts = line.strip().split(",")
@@ -258,15 +281,17 @@ def import_all_matches(league="psl"):
                                 info.setdefault("teams", []).append(value)
                             else:
                                 info[key] = value
-                    elif line.startswith("ball,") or line.startswith("innings,"):
-                        ball_data_start = i
+                    elif line.startswith("ball,") or line.startswith("innings,") or line.startswith("match_id,"):
                         break
 
             if not info.get("teams") or len(info.get("teams", [])) < 2:
                 continue
 
-            # Parse ball-by-ball data
-            stats = parse_ball_by_ball(csv_file)
+            # Parse ball-by-ball from data file (NOT info file)
+            ball_file = files.get("data") or files.get("combined")
+            if not ball_file:
+                continue
+            stats = parse_ball_by_ball(ball_file)
 
             team_a = standardise(info["teams"][0])
             team_b = standardise(info["teams"][1])

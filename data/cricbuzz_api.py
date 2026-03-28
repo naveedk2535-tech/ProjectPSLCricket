@@ -138,14 +138,17 @@ def _fetch_sportsdb_season(league="psl"):
 
     if not can_call("cricket_api"):
         print("[SportsDB] Rate limit reached, falling back to cache")
-        stale = check_cache(cache_key)
+        stale = check_cache(cache_key, ttl_seconds=86400)  # Use stale cache up to 24h
         return stale if stale else []
 
     url = f"{SPORTSDB_BASE}/eventsseason.php?id={league_id}&s={season}"
     print(f"[SportsDB] Fetching {league.upper()} {season}: {url}")
 
     try:
-        resp = requests.get(url, timeout=15)
+        resp = requests.get(url, timeout=30, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "application/json",
+        })
         record_call("cricket_api", url, resp.status_code)
         resp.raise_for_status()
 
@@ -158,7 +161,8 @@ def _fetch_sportsdb_season(league="psl"):
     except Exception as e:
         print(f"[SportsDB] Error fetching {league.upper()}: {e}")
         record_call("cricket_api", url, 500)
-        stale = check_cache(cache_key)
+        # Try stale cache (up to 24 hours old)
+        stale = check_cache(cache_key, ttl_seconds=86400)
         if stale:
             print("[SportsDB] Falling back to stale cache")
             return stale

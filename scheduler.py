@@ -469,9 +469,11 @@ def task_tracker_settle():
                  db.now_iso(), entry["id"]]
             )
 
-            # Log performance per model
-            diagnosis.log_performance("ensemble", entry["team_a_prob"],
-                                      1 if actual_winner == entry["team_a"] else 0)
+            # Log performance for ALL models (not just ensemble)
+            entry_with_winner = dict(entry)
+            entry_with_winner["actual_winner"] = actual_winner
+            league = entry.get("league", "psl")
+            diagnosis.evaluate_all_models_for_match(entry_with_winner, league=league)
 
             total_pnl += top_pick_pnl + (vb_pnl or 0.0)
             settled += 1

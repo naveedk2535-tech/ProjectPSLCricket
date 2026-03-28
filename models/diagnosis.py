@@ -73,42 +73,89 @@ def check_model_health():
     return checks
 
 
-def log_performance(model_name, predicted_prob, actual_result):
+def log_performance(model_name, predicted_prob, actual_result, league="psl"):
     """
     Log a single prediction result for performance tracking.
     actual_result: 1 if team_a won, 0 if team_b won
+    Updates both the monthly period AND the 'overall' period.
     """
     brier = (predicted_prob - actual_result) ** 2
     correct = 1 if (predicted_prob > 0.5 and actual_result == 1) or \
                     (predicted_prob < 0.5 and actual_result == 0) else 0
 
-    period = datetime.utcnow().strftime("%Y-%m")
+    month_period = datetime.utcnow().strftime("%Y-%m")
 
-    existing = db.fetch_one(
-        "SELECT * FROM model_performance WHERE model_name = ? AND period = ?",
-        [model_name, period]
+    for period in [month_period, "overall"]:
+        existing = db.fetch_one(
+            "SELECT * FROM model_performance WHERE model_name = ? AND period = ? AND league = ?",
+            [model_name, period, league]
+        )
+
+        if existing:
+            total = existing["total_predictions"] + 1
+            correct_total = existing["correct_predictions"] + correct
+            avg_brier = ((existing["brier_score"] or 0) * existing["total_predictions"] + brier) / total
+            accuracy = correct_total / total
+
+            db.execute(
+                """UPDATE model_performance SET
+                   accuracy = ?, brier_score = ?, total_predictions = ?,
+                   correct_predictions = ?, evaluated_at = ?
+                   WHERE model_name = ? AND period = ? AND league = ?""",
+                [accuracy, avg_brier, total, correct_total, db.now_iso(), model_name, period, league]
+            )
+        else:
+            db.execute(
+                """INSERT INTO model_performance (model_name, period, accuracy, brier_score,
+                   total_predictions, correct_predictions, league, evaluated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                [model_name, period, correct, brier, 1, correct, league, db.now_iso()]
+            )
+
+
+def evaluate_all_models_for_match(tracker_entry, league="psl"):
+    """
+    After settling a match, evaluate ALL individual models by parsing
+    model_details from the predictions table.
+    """
+    match_date = tracker_entry.get("match_date")
+    team_a = tracker_entry.get("team_a")
+    team_b = tracker_entry.get("team_b")
+    actual_winner = tracker_entry.get("actual_winner")
+
+    if not actual_winner:
+        return
+
+    actual_result = 1 if actual_winner == team_a else 0
+
+    # Get the prediction with model_details
+    pred = db.fetch_one(
+        "SELECT model_details FROM predictions WHERE match_date = ? AND "
+        "((team_a = ? AND team_b = ?) OR (team_a = ? AND team_b = ?)) AND league = ?",
+        [match_date, team_a, team_b, team_b, team_a, league]
     )
 
-    if existing:
-        total = existing["total_predictions"] + 1
-        correct_total = existing["correct_predictions"] + correct
-        avg_brier = ((existing["brier_score"] or 0) * existing["total_predictions"] + brier) / total
-        accuracy = correct_total / total * 100
+    if not pred or not pred.get("model_details"):
+        # Just log ensemble
+        log_performance("ensemble", tracker_entry.get("team_a_prob", 0.5), actual_result, league)
+        return
 
-        db.execute(
-            """UPDATE model_performance SET
-               accuracy = ?, brier_score = ?, total_predictions = ?,
-               correct_predictions = ?, evaluated_at = ?
-               WHERE model_name = ? AND period = ?""",
-            [accuracy, avg_brier, total, correct_total, db.now_iso(), model_name, period]
-        )
-    else:
-        db.execute(
-            """INSERT INTO model_performance (model_name, period, accuracy, brier_score,
-               total_predictions, correct_predictions, evaluated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            [model_name, period, correct * 100, brier, 1, correct, db.now_iso()]
-        )
+    try:
+        details = json.loads(pred["model_details"]) if isinstance(pred["model_details"], str) else pred["model_details"]
+    except (json.JSONDecodeError, TypeError):
+        log_performance("ensemble", tracker_entry.get("team_a_prob", 0.5), actual_result, league)
+        return
+
+    # Log each model's performance
+    for model_name in ["batting_bowling", "elo", "xgboost", "sentiment", "player_strength"]:
+        model_data = details.get(model_name, {})
+        if isinstance(model_data, dict):
+            model_prob = model_data.get("team_a_win", 0.5)
+            if isinstance(model_prob, (int, float)):
+                log_performance(model_name, model_prob, actual_result, league)
+
+    # Log ensemble
+    log_performance("ensemble", tracker_entry.get("team_a_prob", 0.5), actual_result, league)
 
 
 def get_performance_summary():

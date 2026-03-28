@@ -2015,6 +2015,79 @@ def auto_optimize_weights():
     return redirect(url_for("settings"))
 
 
+@app.route("/api/enter-result", methods=["POST"])
+@admin_required
+def api_enter_result():
+    """Manually enter a match result (admin only)."""
+    league = _current_league()
+    data = request.json or request.form
+
+    team_a = standardise(data.get("team_a", ""))
+    team_b = standardise(data.get("team_b", ""))
+    match_date = data.get("match_date", "")
+    winner = standardise(data.get("winner", ""))
+    innings1_runs = int(data.get("innings1_runs", 0) or 0)
+    innings1_wickets = int(data.get("innings1_wickets", 0) or 0)
+    innings2_runs = int(data.get("innings2_runs", 0) or 0)
+    innings2_wickets = int(data.get("innings2_wickets", 0) or 0)
+
+    if not team_a or not team_b or not match_date or not winner:
+        return jsonify({"status": "error", "message": "Missing required fields"}), 400
+
+    season = _league_season(league)
+
+    # Insert into matches
+    db.execute(
+        """INSERT INTO matches (season, match_date, team_a, team_b, winner,
+           innings1_runs, innings1_wickets, innings2_runs, innings2_wickets, league)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(season, match_date, team_a, team_b) DO UPDATE SET
+           winner=excluded.winner, innings1_runs=excluded.innings1_runs,
+           innings1_wickets=excluded.innings1_wickets,
+           innings2_runs=excluded.innings2_runs,
+           innings2_wickets=excluded.innings2_wickets""",
+        [season, match_date, team_a, team_b, winner,
+         innings1_runs, innings1_wickets, innings2_runs, innings2_wickets, league]
+    )
+
+    # Update fixture status
+    fix = db.fetch_one(
+        "SELECT id FROM fixtures WHERE match_date = ? AND "
+        "((team_a = ? AND team_b = ?) OR (team_a = ? AND team_b = ?)) AND league = ?",
+        [match_date, team_a, team_b, team_b, team_a, league]
+    )
+    if fix:
+        win_margin = abs(innings1_runs - innings2_runs) if innings1_runs and innings2_runs else 0
+        db.execute(
+            "UPDATE fixtures SET status = 'COMPLETED', result = ? WHERE id = ?",
+            [f"{winner} won by {win_margin} runs", fix["id"]]
+        )
+
+    # Settle any tracker entries for this match
+    tracker = db.fetch_one(
+        "SELECT * FROM model_tracker WHERE match_date = ? AND "
+        "((team_a = ? AND team_b = ?) OR (team_a = ? AND team_b = ?)) AND league = ? AND status = 'pending'",
+        [match_date, team_a, team_b, team_b, team_a, league]
+    )
+    if tracker:
+        predicted_winner = standardise(tracker.get("predicted_winner", ""))
+        correct = 1 if predicted_winner == winner else 0
+        predicted_prob = max(tracker.get("team_a_prob", 0.5) or 0.5, tracker.get("team_b_prob", 0.5) or 0.5)
+        pnl = 100 * (1 / predicted_prob) - 100 if correct else -100.0
+        db.execute(
+            """UPDATE model_tracker SET actual_winner = ?, actual_total_a = ?, actual_total_b = ?,
+               top_pick_correct = ?, top_pick_pnl = ?, status = 'settled', settled_at = ?
+               WHERE id = ?""",
+            [winner, innings1_runs, innings2_runs, correct, pnl, db.now_iso(), tracker["id"]]
+        )
+
+    return jsonify({
+        "status": "ok",
+        "message": f"Result entered: {winner} won ({innings1_runs}/{innings1_wickets} vs {innings2_runs}/{innings2_wickets})",
+        "settled_tracker": tracker is not None,
+    })
+
+
 @app.route("/settings/create-portfolio", methods=["POST"])
 @admin_required
 def create_portfolio():

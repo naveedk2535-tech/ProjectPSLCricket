@@ -86,12 +86,20 @@
                 <p class="text-[10px] text-gray-500 uppercase tracking-wider mt-1">Accuracy</p>
             </div>
             <div>
-                <p class="text-2xl font-black text-blue-400">{{ stats.total_matches|default(0) }}</p>
+                <p class="text-2xl font-black text-blue-400">{{ season.historical|default(stats.total_matches|default(0)) }}</p>
                 <p class="text-[10px] text-gray-500 uppercase tracking-wider mt-1">Historical</p>
             </div>
             <div>
-                <p class="text-2xl font-black text-amber-300">{{ season.current_leader|default('TBD') }}</p>
-                <p class="text-[10px] text-gray-500 uppercase tracking-wider mt-1">Leader</p>
+                <p class="text-2xl font-black text-cyan-400">{{ season.teams|default(0) }}</p>
+                <p class="text-[10px] text-gray-500 uppercase tracking-wider mt-1">Teams</p>
+            </div>
+            <div>
+                <p class="text-2xl font-black text-pink-400">{{ season.players|default(0) }}</p>
+                <p class="text-[10px] text-gray-500 uppercase tracking-wider mt-1">Players</p>
+            </div>
+            <div>
+                <p class="text-lg font-black text-amber-300 truncate">{{ season.current_leader|default('TBD') }}</p>
+                <p class="text-[10px] text-gray-500 uppercase tracking-wider mt-1">Top Rated</p>
             </div>
         </div>
         <!-- Season progress bar -->
@@ -104,6 +112,98 @@
             <span class="text-[10px] text-gray-400 flex-shrink-0">{{ "%.0f"|format(progress) }}%</span>
         </div>
     </div>
+
+    {# If no upcoming matches (e.g. IPL without fixtures), show standings first #}
+    {% if not upcoming %}
+    {% set team_standings = team_standings|default([]) %}
+    {% set top_players = top_players|default([]) %}
+    {% set recent_matches = recent_matches|default([]) %}
+
+    {% if team_standings %}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                Team Rankings (Elo)
+            </h3>
+            <div class="space-y-2">
+                {% for team in team_standings[:10] %}
+                <div class="flex items-center gap-3 p-2 rounded-lg bg-white/[0.02] hover:bg-white/[0.05]">
+                    <span class="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold text-gray-400">{{ loop.index }}</span>
+                    <span class="flex-1 text-sm font-semibold text-white truncate">{{ team.team }}</span>
+                    <span class="text-xs text-amber-400 font-bold">{{ '%.0f'|format(team.elo|default(1500)) }}</span>
+                    <span class="text-[10px] text-gray-500">{{ team.wins|default(0) }}W {{ team.losses|default(0) }}L</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% if top_players %}
+        <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                Top Players (Impact Score)
+            </h3>
+            <div class="space-y-2">
+                {% for p in top_players %}
+                <div class="flex items-center gap-2 p-2 rounded-lg bg-white/[0.02] hover:bg-white/[0.05]">
+                    <div class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold
+                        {% if p.impact_score >= 70 %}bg-emerald-500/20 text-emerald-400
+                        {% elif p.impact_score >= 50 %}bg-blue-500/20 text-blue-400
+                        {% else %}bg-gray-700 text-gray-400{% endif %}">
+                        {{ p.impact_score|int }}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-xs font-semibold text-white truncate">{{ p.name }}</div>
+                        <div class="text-[10px] text-gray-500">{{ p.team }}</div>
+                    </div>
+                    <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase
+                        {% if p.role == 'batsman' %}bg-blue-500/10 text-blue-400
+                        {% elif p.role == 'bowler' %}bg-red-500/10 text-red-400
+                        {% elif p.role == 'all-rounder' %}bg-purple-500/10 text-purple-400
+                        {% else %}bg-amber-500/10 text-amber-400{% endif %}">
+                        {{ p.role[:3]|upper }}
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if recent_matches %}
+    <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
+        <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Recent Match History
+        </h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+                <thead><tr class="text-gray-500 uppercase tracking-wider border-b border-white/5">
+                    <th class="text-left py-2 font-medium">Date</th>
+                    <th class="text-left py-2 font-medium">Match</th>
+                    <th class="text-center py-2 font-medium">Score</th>
+                    <th class="text-left py-2 font-medium">Result</th>
+                </tr></thead>
+                <tbody>
+                    {% for m in recent_matches[:10] %}
+                    <tr class="border-b border-white/5 hover:bg-white/[0.02]">
+                        <td class="py-2 text-gray-500">{{ m.match_date[:10] }}</td>
+                        <td class="py-2 text-white font-medium">{{ m.team_a }} vs {{ m.team_b }}</td>
+                        <td class="py-2 text-center text-gray-300">{{ m.innings1_runs|default('-') }} / {{ m.innings2_runs|default('-') }}</td>
+                        <td class="py-2">
+                            {% if m.winner %}<span class="text-emerald-400 font-semibold">{{ m.winner }}</span>
+                            <span class="text-gray-600"> by {{ m.win_margin }} {{ m.win_type }}</span>
+                            {% else %}<span class="text-gray-500">No result</span>{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
 
     <!-- ============================================================ -->
     <!-- LIVE MATCHES (only shown if any)                              -->

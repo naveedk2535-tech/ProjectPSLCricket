@@ -387,19 +387,35 @@ def dashboard():
     )
 
     played_count = total_played["cnt"] if total_played else 0
-    total_count = total_fixtures["cnt"] if total_fixtures else 44
+    total_count = total_fixtures["cnt"] if total_fixtures else 0
 
-    # Find current leader
+    # If no fixtures, use historical match count
+    hist_count = db.fetch_one("SELECT COUNT(*) as cnt FROM matches WHERE league = ?", [league])
+    historical = hist_count["cnt"] if hist_count else 0
+
+    if total_count == 0:
+        # No fixtures yet — show historical data instead
+        total_count = historical
+        played_count = historical
+
+    # Find current leader by Elo
     current_leader = "TBD"
     ratings = db.fetch_all("SELECT team, elo FROM team_ratings WHERE league = ? ORDER BY elo DESC LIMIT 1", [league])
     if ratings:
         current_leader = ratings[0]["team"]
 
-    season = {
+    # Count unique teams
+    team_count = db.fetch_one("SELECT COUNT(DISTINCT team) as cnt FROM team_ratings WHERE league = ?", [league])
+    player_count = db.fetch_one("SELECT COUNT(*) as cnt FROM player_stats WHERE league = ?", [league])
+
+    season_data = {
         "matches_played": played_count,
-        "matches_remaining": total_count - played_count,
+        "matches_remaining": max(0, total_count - played_count),
         "total_matches": total_count,
         "current_leader": current_leader,
+        "teams": team_count["cnt"] if team_count else 0,
+        "players": player_count["cnt"] if player_count else 0,
+        "historical": historical,
     }
 
     # Stats for cards
@@ -449,7 +465,7 @@ def dashboard():
         recent_results=recent_results,
         value_bets=value_bets,
         api_usage=api_usage,
-        season=season,
+        season=season_data,
         stats=stats,
         teams=config.TEAMS if league == "psl" else config.IPL_TEAMS,
         now=datetime.utcnow(),

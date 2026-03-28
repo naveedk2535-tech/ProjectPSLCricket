@@ -2355,6 +2355,14 @@ def api_refresh_data():
     league = _current_league()
     results = {}
 
+    # 0. Cricbuzz: fetch recent results and update completed matches (free, no API key)
+    try:
+        from data.cricbuzz_api import update_completed_matches
+        cb_count = update_completed_matches(league=league)
+        results["cricbuzz"] = f"{cb_count} match results updated"
+    except Exception as exc:
+        results["cricbuzz"] = f"error: {exc}"
+
     # 1. Fixtures from CricAPI
     try:
         from data.cricket_api import get_fixtures, save_fixtures_to_db

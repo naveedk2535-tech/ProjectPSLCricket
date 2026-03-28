@@ -388,13 +388,23 @@ def task_tracker_settle():
     task = "tracker_settle"
     log_info(task, "Settling tracker entries...")
 
-    # First, try to fetch scorecards for completed fixtures without match records
+    # First, try Cricbuzz API (free, no key needed) for recent results
+    try:
+        from data.cricbuzz_api import update_completed_matches
+        for lg in ("psl", "ipl"):
+            cb_updated = update_completed_matches(league=lg)
+            if cb_updated:
+                log_info(task, f"Cricbuzz: updated {cb_updated} {lg.upper()} match results")
+    except Exception as e:
+        log_warn(task, f"Cricbuzz fetch failed: {e}")
+
+    # Then try CricAPI scorecards as fallback
     try:
         fetched = _fetch_completed_scorecards()
         if fetched:
-            log_info(task, f"Fetched {fetched} scorecards from CricAPI")
+            log_info(task, f"CricAPI: fetched {fetched} scorecards")
     except Exception as e:
-        log_warn(task, f"Scorecard fetch failed: {e}")
+        log_warn(task, f"CricAPI scorecard fetch failed: {e}")
 
     try:
         pending = db.fetch_all(

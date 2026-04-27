@@ -20,9 +20,9 @@
 {%- endmacro %}
 
 {% macro model_card(m) %}
-{% set acc = (m.accuracy * 100) if m.accuracy <= 1 else m.accuracy %}
+{% set acc = (m.accuracy * 100) if m.accuracy is not none and m.accuracy <= 1 else (m.accuracy|default(0)|float) %}
 {% set brier = m.brier|default(0)|float %}
-{% set roi_val = (m.roi * 100) if m.roi is defined and m.roi != 0 and m.roi <= 1 else (m.roi|default(0)|float) %}
+{% set roi_val = (m.roi * 100) if m.roi is not none and m.roi != 0 and m.roi <= 1 else (m.roi|default(0)|float) %}
 <div class="bg-white/5 border border-white/10 rounded-2xl p-5 hover:border-white/20 transition-colors">
     <div class="flex items-center justify-between mb-3">
         <h4 class="text-sm font-bold text-white">{{ model_display_name(m.name) }}</h4>

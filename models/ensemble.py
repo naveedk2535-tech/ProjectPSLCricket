@@ -15,6 +15,13 @@ import config
 from database import db
 from models import batting_bowling, elo, xgboost_model, sentiment as sentiment_model, over_under, player_strength
 
+def _stacker_path(league="psl"):
+    return os.path.join(config.CACHE_DIR, f"stacker_model_{league}.pkl")
+
+def _weights_path(league="psl"):
+    return os.path.join(config.CACHE_DIR, f"optimized_weights_{league}.json")
+
+# Legacy paths for backward compatibility
 STACKER_PATH = os.path.join(config.CACHE_DIR, "stacker_model.pkl")
 WEIGHTS_PATH = os.path.join(config.CACHE_DIR, "optimized_weights.json")
 
@@ -68,14 +75,14 @@ def predict(team_a, team_b, venue=None, match_date=None, league="psl"):
                                            "details": {"model": "player_strength", "error": str(e)}}
 
     # Try stacking ensemble
-    stacked = _stacker_predict(predictions, team_a, team_b)
+    stacked = _stacker_predict(predictions, team_a, team_b, league=league)
     if stacked:
         team_a_win = stacked["team_a_win"]
         team_b_win = stacked["team_b_win"]
         blend_method = "stacking"
     else:
         # Weighted average
-        weights = _load_weights()
+        weights = _load_weights(league=league)
         team_a_win = sum(weights[m] * predictions[m]["team_a_win"] for m in weights if m in predictions)
         team_b_win = sum(weights[m] * predictions[m]["team_b_win"] for m in weights if m in predictions)
 
@@ -176,24 +183,30 @@ def predict(team_a, team_b, venue=None, match_date=None, league="psl"):
     return result
 
 
-def _load_weights():
-    """Load model weights (optimized or default)."""
-    if os.path.exists(WEIGHTS_PATH):
-        try:
-            with open(WEIGHTS_PATH) as f:
-                return json.load(f)
-        except Exception:
-            pass
+def _load_weights(league="psl"):
+    """Load model weights (optimized or default) for a specific league."""
+    league_path = _weights_path(league)
+    # Try league-specific first, then legacy global
+    for path in [league_path, WEIGHTS_PATH]:
+        if os.path.exists(path):
+            try:
+                with open(path) as f:
+                    return json.load(f)
+            except Exception:
+                pass
     return config.MODEL_WEIGHTS.copy()
 
 
-def _stacker_predict(predictions, team_a, team_b):
+def _stacker_predict(predictions, team_a, team_b, league="psl"):
     """Use stacking meta-model if available."""
-    if not os.path.exists(STACKER_PATH):
+    league_path = _stacker_path(league)
+    # Try league-specific first, then legacy global
+    model_path = league_path if os.path.exists(league_path) else STACKER_PATH
+    if not os.path.exists(model_path):
         return None
 
     try:
-        stacker = pickle.load(open(STACKER_PATH, "rb"))
+        stacker = pickle.load(open(model_path, "rb"))
 
         # Build feature vector for stacker
         features = []
@@ -358,10 +371,11 @@ def optimize_weights(league="psl"):
         optimized = dict(zip(model_names, result.x.tolist()))
         optimized = {k: round(v, 4) for k, v in optimized.items()}
 
-        with open(WEIGHTS_PATH, "w") as f:
+        league_wpath = _weights_path(league)
+        with open(league_wpath, "w") as f:
             json.dump(optimized, f, indent=2)
 
-        print(f"[Ensemble] Optimized weights: {optimized}, Brier: {result.fun:.4f}")
+        print(f"[Ensemble] Optimized weights ({league}): {optimized}, Brier: {result.fun:.4f}")
         return optimized
 
     return None
@@ -405,9 +419,10 @@ def train_stacker(league="psl"):
     stacker = LogisticRegression(max_iter=1000, random_state=42)
     stacker.fit(X, y)
 
-    os.makedirs(os.path.dirname(STACKER_PATH), exist_ok=True)
-    with open(STACKER_PATH, "wb") as f:
+    league_spath = _stacker_path(league)
+    os.makedirs(os.path.dirname(league_spath), exist_ok=True)
+    with open(league_spath, "wb") as f:
         pickle.dump(stacker, f)
 
-    print(f"[Ensemble] Stacker trained on {len(y)} matches")
+    print(f"[Ensemble] Stacker trained on {len(y)} matches ({league})")
     return stacker

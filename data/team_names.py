@@ -65,6 +65,7 @@ NAME_MAP = {
     "Rawalpindi P": "Rawalpindi Pindiz",
     "RWP": "Rawalpindi Pindiz",
     "Pindi": "Rawalpindi Pindiz",
+    "Rawalpindiz": "Rawalpindi Pindiz",
 }
 
 # Canonical team names

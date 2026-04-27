@@ -58,6 +58,22 @@ def log_error(task, msg):
     print(f"[{_ts()}] [{task}] ERROR: {msg}")
 
 
+def _log_refresh(league, source, status="ok", detail=""):
+    """Log a data refresh event to data_refresh_log for dashboard display."""
+    try:
+        db.execute(
+            """INSERT INTO data_refresh_log (league, source, status, detail, refreshed_at)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(league, source) DO UPDATE SET
+                   status = excluded.status,
+                   detail = excluded.detail,
+                   refreshed_at = excluded.refreshed_at""",
+            [league, source, status, detail, _ts()]
+        )
+    except Exception:
+        pass  # Non-critical — don't break scheduler if logging fails
+
+
 # ============================================================================
 #  Individual task implementations
 # ============================================================================
@@ -74,6 +90,7 @@ def task_fixtures():
                 continue
             cricket_api.save_fixtures_to_db(fixtures, league=league)
             log_info(task, f"Saved {len(fixtures)} {league.upper()} fixtures to database")
+            _log_refresh(league, "fixtures", "ok", f"{len(fixtures)} fixtures")
         except Exception as e:
             log_error(task, f"{league.upper()} failed: {e}")
             traceback.print_exc()
@@ -88,9 +105,11 @@ def task_odds():
             odds_list = odds_api.get_odds(league=league)
             if not odds_list:
                 log_warn(task, f"No {league.upper()} odds returned (may be off-season or rate-limited)")
+                _log_refresh(league, "odds", "warning", "No odds available")
                 continue
             odds_api.save_odds_to_db(odds_list, league=league)
             log_info(task, f"Saved odds for {len(odds_list)} {league.upper()} matches")
+            _log_refresh(league, "odds", "ok", f"{len(odds_list)} matches")
         except Exception as e:
             log_error(task, f"{league.upper()} failed: {e}")
             traceback.print_exc()
@@ -171,6 +190,7 @@ def task_sentiment():
 
             total = len(reddit_results) + len(news_results)
             log_info(task, f"{league.upper()} sentiment updated for {len(reddit_results)} Reddit + {len(news_results)} News sources")
+            _log_refresh(league, "sentiment", "ok", f"{total} sources")
         except Exception as e:
             log_error(task, f"{league.upper()} failed: {e}")
             traceback.print_exc()
@@ -395,6 +415,7 @@ def task_tracker_settle():
             cb_updated = update_completed_matches(league=lg)
             if cb_updated:
                 log_info(task, f"Cricbuzz: updated {cb_updated} {lg.upper()} match results")
+                _log_refresh(lg, "results", "ok", f"{cb_updated} matches settled")
     except Exception as e:
         log_warn(task, f"Cricbuzz fetch failed: {e}")
 

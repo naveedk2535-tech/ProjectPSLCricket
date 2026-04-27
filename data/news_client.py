@@ -104,7 +104,7 @@ def fetch_all_teams(league="psl"):
             positive = sum(1 for s in scores if s > 0.05) / len(scores) * 100
             negative = sum(1 for s in scores if s < -0.05) / len(scores) * 100
             neutral = 100 - positive - negative
-            signal = "bullish" if avg_score > 0.15 else ("bearish" if avg_score < -0.15 else "neutral")
+            signal = "confident" if avg_score > 0.15 else ("struggling" if avg_score < -0.15 else "neutral")
         else:
             avg_score, positive, negative, neutral = 0.0, 0.0, 0.0, 100.0
             signal = "neutral"

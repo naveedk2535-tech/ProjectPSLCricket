@@ -45,20 +45,6 @@ def get_odds(league="psl"):
         for event in data:
             teams = [standardise(t) for t in event.get("teams", [])]
             if len(teams) < 2:
-                commence = event.get("commence_time", "")
-                bookmakers = event.get("bookmakers", [])
-
-                # Find best odds across bookmakers
-                best_odds = _find_best_odds(bookmakers, teams)
-                if best_odds:
-                    odds_entry = {
-                        "match_date": commence[:10] if commence else "",
-                        "team_a": teams[0] if teams else "",
-                        "team_b": teams[1] if len(teams) > 1 else "",
-                        **best_odds,
-                        "fetched_at": db.now_iso(),
-                    }
-                    odds_list.append(odds_entry)
                 continue
 
             commence = event.get("commence_time", "")

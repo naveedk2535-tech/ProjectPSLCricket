@@ -217,7 +217,7 @@ def check_venue_stats_freshness():
 
 def check_xgboost_exists():
     """Check if trained XGBoost model file exists."""
-    model_path = os.path.join(config.CACHE_DIR, "xgboost_model.pkl")
+    model_path = os.path.join(config.CACHE_DIR, "xgboost_model_psl.pkl")
     if not os.path.exists(model_path):
         return _result("xgboost_exists", "model_health", "critical",
                         "No trained XGBoost model found",
@@ -228,7 +228,7 @@ def check_xgboost_exists():
 
 def check_xgboost_age():
     """Check if XGBoost model is not too old."""
-    model_path = os.path.join(config.CACHE_DIR, "xgboost_model.pkl")
+    model_path = os.path.join(config.CACHE_DIR, "xgboost_model_psl.pkl")
     max_age = config.WATCHDOG_SETTINGS["model_max_age_days"]
     if not os.path.exists(model_path):
         return _result("xgboost_age", "model_health", "critical",

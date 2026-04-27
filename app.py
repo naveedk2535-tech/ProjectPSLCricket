@@ -1867,10 +1867,15 @@ def settings():
             "created": udata.get("created_at", "-"),
         })
 
-    # Current weights
-    weights_path = os.path.join(config.CACHE_DIR, "optimized_weights.json")
-    if os.path.exists(weights_path):
-        with open(weights_path) as fh:
+    # Current weights (per-league)
+    league = _current_league()
+    league_weights_path = os.path.join(config.CACHE_DIR, f"optimized_weights_{league}.json")
+    legacy_weights_path = os.path.join(config.CACHE_DIR, "optimized_weights.json")
+    if os.path.exists(league_weights_path):
+        with open(league_weights_path) as fh:
+            weights = json.load(fh)
+    elif os.path.exists(legacy_weights_path):
+        with open(legacy_weights_path) as fh:
             weights = json.load(fh)
     else:
         weights = config.MODEL_WEIGHTS.copy()
@@ -1988,14 +1993,16 @@ def save_weights():
         "elo": float(request.form.get("elo", 0.25)),
         "xgboost": float(request.form.get("xgboost", 0.35)),
         "sentiment": float(request.form.get("sentiment", 0.15)),
+        "player_strength": float(request.form.get("player_strength", 0.15)),
     }
 
-    weights_path = os.path.join(config.CACHE_DIR, "optimized_weights.json")
+    league = _current_league()
+    weights_path = os.path.join(config.CACHE_DIR, f"optimized_weights_{league}.json")
     os.makedirs(os.path.dirname(weights_path), exist_ok=True)
     with open(weights_path, "w") as fh:
         json.dump(weights, fh, indent=2)
 
-    flash("Model weights saved.", "success")
+    flash(f"Model weights saved for {league.upper()}.", "success")
     return redirect(url_for("settings"))
 
 
@@ -2005,9 +2012,10 @@ def auto_optimize_weights():
     """Auto-optimize ensemble weights."""
     try:
         from models.ensemble import optimize_weights
-        result = optimize_weights()
+        league = _current_league()
+        result = optimize_weights(league=league)
         if result:
-            flash("Weights auto-optimized successfully.", "success")
+            flash(f"Weights auto-optimized for {league.upper()}.", "success")
         else:
             flash("Not enough data to optimize (need 20+ settled predictions).", "warning")
     except Exception as exc:
@@ -2907,8 +2915,9 @@ def api_export_dashboard():
 # ---------------------------------------------------------------------------
 
 @app.route("/api/diag")
+@login_required
 def api_diag():
-    """Diagnostic endpoint — no login required."""
+    """Diagnostic endpoint — login required."""
     import database.db as _db
     league = _current_league()
     fixtures = db.fetch_all("SELECT id, status, match_date, team_a, team_b FROM fixtures WHERE league = ? LIMIT 10", [league])

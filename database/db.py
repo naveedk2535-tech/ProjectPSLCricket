@@ -19,7 +19,7 @@ def get_connection():
     if not hasattr(_local, "connection") or _local.connection is None:
         _local.connection = sqlite3.connect(DB_PATH, timeout=30)
         _local.connection.row_factory = sqlite3.Row
-        _local.connection.execute("PRAGMA journal_mode=DELETE")
+        _local.connection.execute("PRAGMA journal_mode=WAL")
         _local.connection.execute("PRAGMA foreign_keys=ON")
         _local.connection.execute("PRAGMA busy_timeout=5000")
     return _local.connection

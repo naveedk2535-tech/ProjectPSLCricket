@@ -20,6 +20,9 @@ def get_venue_coordinates(venue):
     for v_name, v_info in config.VENUES.items():
         if v_name == venue or v_info["city"] in venue:
             return v_info["lat"], v_info["lon"]
+    for v_name, v_info in config.IPL_VENUES.items():
+        if v_name == venue or v_info["city"] in venue:
+            return v_info["lat"], v_info["lon"]
     return None, None
 
 

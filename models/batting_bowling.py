@@ -140,10 +140,12 @@ def predict(team_a, team_b, venue=None, league="psl"):
             venue_avg_second = venue_avg_first - 10
 
     # Project innings totals
-    # Team A batting first: their batting strength vs B's bowling
-    total_a = venue_avg_first * s_a["batting_strength"] / max(0.5, s_b["bowling_strength"])
-    # Team B chasing: their batting strength vs A's bowling
-    total_b = venue_avg_second * s_b["batting_strength"] / max(0.5, s_a["bowling_strength"])
+    # Use venue average (mean of first/second) since we don't know batting order
+    venue_avg = (venue_avg_first + venue_avg_second) / 2
+    # Team A: their batting strength vs B's bowling at venue average
+    total_a = venue_avg * s_a["batting_strength"] / max(0.5, s_b["bowling_strength"])
+    # Team B: their batting strength vs A's bowling at venue average
+    total_b = venue_avg * s_b["batting_strength"] / max(0.5, s_a["bowling_strength"])
 
     # Clamp to reasonable T20 range
     total_a = max(80, min(250, total_a))
